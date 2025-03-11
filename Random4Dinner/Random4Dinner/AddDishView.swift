@@ -25,19 +25,41 @@ struct AddDishView: View {
                 }
                 
                 Section(header: Text("Описание")) {
-                    TextField("Введите описание", text: $about)
+                    TextEditor(text: $about)
+                        .frame(height: 150) // Высота поля для ввода текста
+                        .multilineTextAlignment(.leading) // Выравнивание текста
+                        .cornerRadius(10) // Закруглённые края
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.gray.opacity(0.5), lineWidth: 1) // Обводка для эстетики
+                        )
                 }
                 
                 Section(header: Text("Фото")) {
                     PhotosPicker(selection: $selectedImage, matching: .images, photoLibrary: .shared()) {
                         Text("Выбрать фото")
                     }
-                    if let imageData, let uiImage = UIImage(data: imageData) {
+                    if let imageData = imageData, let uiImage = UIImage(data: imageData) {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFit()
                             .frame(height: 200)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    // Показываем новое изображение, если выбрано
+                    else if let imageData, let uiImage = UIImage(data: imageData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 200)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+            }
+            .onChange(of: selectedImage) { oldItem, newItem in
+                Task {
+                    if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                        imageData = data
                     }
                 }
             }

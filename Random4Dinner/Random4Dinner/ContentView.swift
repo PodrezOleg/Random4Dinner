@@ -18,10 +18,16 @@ struct ContentView: View {
         NavigationStack {
             VStack {
                 Button("Выбрать еду") {
-                    selectedDish = dishes.randomElement()
+                    withAnimation(.snappy(duration: 0.5)) {
+                        selectedDish = dishes.randomElement()
+                    }
                 }
+                .frame(width: 600, height: 150)
+                .foregroundColor(.white)
+                .background(Color.orange)
+                .clipShape(Circle())
                 .padding()
-                .buttonStyle(.borderedProminent)
+                .font(.title2.bold()) // Увеличим шрифт для визуального эффекта
                 
                 .navigationDestination(item: $selectedDish) { dish in
                     DishDetailView(dish: dish)
