@@ -26,22 +26,35 @@ struct DishDetailView: View {
                     .frame(height: 300)
                     .foregroundColor(.gray)
                     .opacity(0.5)
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
                     .padding()
+                    
             }
-
+            
             Text(dish.name)
                 .font(.largeTitle)
                 .bold()
                 .padding(.top)
-
+            
             Text(dish.about)
-                .font(.body)
-                .foregroundColor(.secondary)
+                .frame(height: 150) // Высота поля для ввода текста
+                .multilineTextAlignment(.leading) // Выравнивание текста
+                .cornerRadius(10) // Закруглённые края
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.gray.opacity(0.5), lineWidth: 1) // Обводка для эстетики
+                )
                 .padding()
-
-            Spacer()
         }
+        Spacer()
         .padding()
         .navigationTitle(dish.name)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                NavigationLink(destination: EditDishView(dish: dish)) {
+                    Text("Редактировать")
+                }
+            }
+        }
     }
 }
