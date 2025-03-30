@@ -67,7 +67,11 @@ struct AddDishView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Сохранить") {
-                        let newDish = Dish(name: name, about: about, image: imageData)
+                        let newDish = Dish(
+                            name: name,
+                            about: about,
+                            imageBase64: imageData?.base64EncodedString()
+                        )
                         context.insert(newDish)
                         dismiss()
                     }
