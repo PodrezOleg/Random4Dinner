@@ -6,17 +6,25 @@
 //
 
 import SwiftData
-import SwiftUI
+import Foundation
 
 @Model
-class Dish  {
+class Dish {
+    @Attribute(.unique)
+    var id: UUID?
     var name: String
     var about: String
-    var image: Data?
-    
-    init(name: String, about: String, image: Data? = nil) {
+    var imageBase64: String?
+
+    init(name: String, about: String, imageBase64: String?) {
+        self.id = UUID()
         self.name = name
         self.about = about
-        self.image = image
+        self.imageBase64 = imageBase64
+    }
+
+    // Конвертация из DishDECOD в Dish для хранения
+    convenience init(from decoded: DishDECOD) {
+        self.init(name: decoded.name, about: decoded.about, imageBase64: decoded.imageBase64)
     }
 }

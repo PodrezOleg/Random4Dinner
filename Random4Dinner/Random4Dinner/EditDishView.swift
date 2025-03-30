@@ -38,7 +38,9 @@ struct EditDishView: View {
                         Text("Выбрать фото")
                     }
                     // Показываем существующее изображение, если оно есть
-                    if let imageData = dish.image, let uiImage = UIImage(data: imageData) {
+                    if let imageData = dish.imageBase64,
+                       let data = Data(base64Encoded: imageData),
+                       let uiImage = UIImage(data: data) {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFit()
@@ -55,15 +57,16 @@ struct EditDishView: View {
                     }
                 }
             }
-            .onChange(of: selectedImage) { oldItem, newItem in
-                Task {
-                    // Загружаем изображение и сохраняем в объекте Dish
-                    if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                        dish.image = data
-                        imageData = data
-                    }
+        .onChange(of: selectedImage) { oldItem, newItem in
+            Task {
+                // Загружаем изображение и сохраняем в объекте Dish
+                if let newItem, let data = try? await newItem.loadTransferable(type: Data.self) {
+                    dish.imageBase64 = data.base64EncodedString()
+                    imageData = data
                 }
             }
+        }
+
             .navigationTitle("Редактировать блюдо")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

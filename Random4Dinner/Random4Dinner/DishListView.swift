@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 
+
 struct DishListView: View {
     @Environment(\.modelContext) private var context
     @Query private var dishes: [Dish]
@@ -31,10 +32,11 @@ struct DishListView: View {
                         Image(systemName: "plus")
                     }
                 }
+                    }
+                }
             }
         }
-    }
-}
+    
 
 // Вынесем строку блюда в отдельный `View`
 struct DishRowView: View {
@@ -43,7 +45,7 @@ struct DishRowView: View {
     var body: some View {
         NavigationLink(destination: DishDetailView(dish: dish)) {
             HStack {
-                DishImageView(imageData: dish.image)
+                DishImageView(imageData: Data(base64Encoded: dish.imageBase64 ?? ""))
                 VStack(alignment: .leading) {
                     Text(dish.name)
                         .font(.headline)

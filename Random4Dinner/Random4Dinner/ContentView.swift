@@ -8,12 +8,15 @@
 import SwiftUI
 import SwiftData
 
+
 struct ContentView: View {
+    @Environment(\.modelContext) private var context
     @Query private var dishes: [Dish]
     @State private var selectedDish: Dish?
     @State private var isAddingDish = false
-    @State private var isShowingList = false  // Новая переменная для показа списка блюд
-
+    @State private var isShowingList = false
+    @State private var errorMessage: String? = nil
+    
     var body: some View {
         NavigationStack {
             VStack {
@@ -27,14 +30,12 @@ struct ContentView: View {
                 .background(Color.orange)
                 .clipShape(Circle())
                 .padding()
-                .font(.title2.bold()) // Увеличим шрифт для визуального эффекта
-                
+                .font(.title2.bold())
                 .navigationDestination(item: $selectedDish) { dish in
                     DishDetailView(dish: dish)
                 }
             }
             .toolbar {
-                // Кнопка добавления нового блюда
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: {
                         isAddingDish = true
@@ -42,8 +43,6 @@ struct ContentView: View {
                         Image(systemName: "plus")
                     }
                 }
-                
-                // Кнопка просмотра списка блюд
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: {
                         isShowingList = true
@@ -56,8 +55,39 @@ struct ContentView: View {
                 AddDishView()
             }
             .sheet(isPresented: $isShowingList) {
-                DishListView()  // Показываем список блюд
+                DishListView()
+            }
+            .onAppear {
+                Task {
+                    await fetchDishesFromAPI(context: context)
+                }
+            }
+            .alert("Ошибка", isPresented: Binding.constant(errorMessage != nil)) {
+                Button("ОК", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "Произошла неизвестная ошибка")
             }
         }
+    }
+    
+    @MainActor
+    private func fetchDishesFromAPI(context: ModelContext) async {
+        do {
+            let apiDishes = try await APIService.shared.fetchDishes()
+            for apiDish in apiDishes {
+                let newDish = Dish(from: apiDish)
+                context.insert(newDish) // Вставляем без необходимости использования context.perform
+            }
+        } catch {
+            errorMessage = "Ошибка: \(error.localizedDescription)"
+        }
+    }
+}
+
+extension Dish {
+    func update(from decoded: DishDECOD) {
+        self.name = decoded.name
+        self.about = decoded.about
+        self.imageBase64 = decoded.imageBase64
     }
 }
