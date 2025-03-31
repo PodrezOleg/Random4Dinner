@@ -5,13 +5,28 @@
 //  Created by Oleg Podrez on 11.03.25.
 //
 
+//
+//  ContentView.swift
+//  Random4Dinner
+//
+//  Created by Oleg Podrez on 11.03.25.
+//
+
+//
+//  ContentView.swift
+//  Random4Dinner
+//
+//  Created by Oleg Podrez on 11.03.25.
+//
+
 import SwiftUI
 import SwiftData
 
-
 struct ContentView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     @Query private var dishes: [Dish]
+    
     @State private var selectedDish: Dish?
     @State private var isAddingDish = false
     @State private var isShowingList = false
@@ -59,7 +74,15 @@ struct ContentView: View {
             }
             .onAppear {
                 Task {
-                    await fetchDishesFromAPI(context: context)
+                    await DishSyncService.shared.importInitialDishesIfNeeded(context: context)
+                }
+            }
+            .onChange(of: dishes) { _ in
+                DishSyncService.shared.exportDishesToJSON(context: context)
+            }
+            .onChange(of: scenePhase) { newPhase in
+                if newPhase == .background {
+                    DishSyncService.shared.exportDishesToJSON(context: context)
                 }
             }
             .alert("Ошибка", isPresented: Binding.constant(errorMessage != nil)) {
@@ -67,19 +90,6 @@ struct ContentView: View {
             } message: {
                 Text(errorMessage ?? "Произошла неизвестная ошибка")
             }
-        }
-    }
-    
-    @MainActor
-    private func fetchDishesFromAPI(context: ModelContext) async {
-        do {
-            let apiDishes = try await APIService.shared.fetchDishes()
-            for apiDish in apiDishes {
-                let newDish = Dish(from: apiDish)
-                context.insert(newDish) // Вставляем без необходимости использования context.perform
-            }
-        } catch {
-            errorMessage = "Ошибка: \(error.localizedDescription)"
         }
     }
 }
