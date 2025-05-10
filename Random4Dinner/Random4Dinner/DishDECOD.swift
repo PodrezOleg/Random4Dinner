@@ -14,12 +14,28 @@ struct DishDECOD: Codable, Identifiable {
     let name: String
     let about: String
     let imageBase64: String?
+    let category: MealCategory
 
-    // Создаём ID на основе декодированного объекта, если его нет в JSON
-    init(id: UUID = UUID(), name: String, about: String, imageBase64: String?) {
+    // 👇 Обновлённый инициализатор с обработкой старых JSON без категории
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try? container.decode(UUID.self, forKey: .id)
+        self.name = try container.decode(String.self, forKey: .name)
+        self.about = try container.decode(String.self, forKey: .about)
+        self.imageBase64 = try? container.decode(String.self, forKey: .imageBase64)
+        self.category = (try? container.decode(MealCategory.self, forKey: .category)) ?? .lunch
+    }
+
+    // 👇 Добавим init для ручного создания (не изменился)
+    init(id: UUID = UUID(), name: String, about: String, imageBase64: String?, category: MealCategory) {
         self.id = id
         self.name = name
         self.about = about
         self.imageBase64 = imageBase64
+        self.category = category
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, about, imageBase64, category
     }
 }
