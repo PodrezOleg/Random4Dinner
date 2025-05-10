@@ -8,10 +8,11 @@
 import SwiftUI
 import SwiftData
 
+
 struct DishListView: View {
     @Environment(\.modelContext) private var context
     @Query private var dishes: [Dish]
-
+    
     var body: some View {
         NavigationView {
             List {
@@ -21,6 +22,14 @@ struct DishListView: View {
                 .onDelete { indexSet in
                     for index in indexSet {
                         context.delete(dishes[index])
+                    }
+                    do {
+                        try context.save()
+                        Task {
+                            await DishSyncService.shared.exportDishesToJSON(context: context)
+                        }
+                    } catch {
+                        print("❌ Ошибка при удалении блюда: \(error)")
                     }
                 }
             }
@@ -33,48 +42,57 @@ struct DishListView: View {
                 }
             }
         }
+        .task {
+            await DishSyncService.shared.exportDishesToJSON(context: context)
+        }
+        .onDisappear {
+            Task {
+                await DishSyncService.shared.exportDishesToJSON(context: context)
+            }
+        }
     }
-}
-
-// Вынесем строку блюда в отдельный `View`
-struct DishRowView: View {
-    let dish: Dish
-
-    var body: some View {
-        NavigationLink(destination: DishDetailView(dish: dish)) {
-            HStack {
-                DishImageView(imageData: dish.image)
-                VStack(alignment: .leading) {
-                    Text(dish.name)
-                        .font(.headline)
-                    Text(dish.about)
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
+    
+    
+    // Вынесем строку блюда в отдельный `View`
+    struct DishRowView: View {
+        let dish: Dish
+        
+        var body: some View {
+            NavigationLink(destination: DishDetailView(dish: dish)) {
+                HStack {
+                    DishImageView(imageData: Data(base64Encoded: dish.imageBase64 ?? ""))
+                    VStack(alignment: .leading) {
+                        Text(dish.name)
+                            .font(.headline)
+                        Text(dish.about)
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
                 }
             }
         }
     }
-}
-
-// Вынесем обработку изображения в отдельный `View`
-struct DishImageView: View {
-    let imageData: Data?
-
-    var body: some View {
-        if let imageData, let uiImage = UIImage(data: imageData) {
-            Image(uiImage: uiImage)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 50, height: 50)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-        } else {
-            Image(systemName: "photo")
-                .resizable()
-                .scaledToFill()
-                .frame(width: 50, height: 50)
-                .foregroundColor(.gray)
-                .opacity(0.5)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+    
+    // Вынесем обработку изображения в отдельный `View`
+    struct DishImageView: View {
+        let imageData: Data?
+        
+        var body: some View {
+            if let imageData, let uiImage = UIImage(data: imageData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 50, height: 50)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            } else {
+                Image(systemName: "photo")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 50, height: 50)
+                    .foregroundColor(.gray)
+                    .opacity(0.5)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
         }
     }
 }

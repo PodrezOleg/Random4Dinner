@@ -12,6 +12,7 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 *.dSYM
+**/KeychainHelper.swift
 
 ## Playgrounds
 timeline.xctimeline
