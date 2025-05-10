@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var isAddingDish = false
     @State private var isShowingList = false
     @State private var errorMessage: String? = nil
+    @State private var showKeychainSetup = false
     
     var body: some View {
         NavigationStack {
@@ -37,16 +38,16 @@ struct ContentView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: {
+                    Button {
                         isAddingDish = true
-                    }) {
+                    } label: {
                         Image(systemName: "plus")
                     }
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(action: {
+                    Button {
                         isShowingList = true
-                    }) {
+                    } label: {
                         Image(systemName: "fork.knife")
                     }
                 }
@@ -57,22 +58,41 @@ struct ContentView: View {
             .sheet(isPresented: $isShowingList) {
                 DishListView()
             }
+            .sheet(isPresented: $showKeychainSetup) {
+                KeychainSetupView()
+            }
             .onAppear {
+                // 1. Импорт локальных блюд сразу
+                DishSyncService.shared.importDishesFromLocalJSON(context: context)
+
+                // 2. Через 5 секунд — попытка синхронизации с NAS
                 Task {
-                    await DishSyncService.shared.importInitialDishesIfNeeded(context: context)
+                    try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 секунд
+
+                    if await DishSyncService.shared.isLocalNetworkReachable() {
+                        await DishSyncService.shared.syncDishes(context: context)
+                    } else {
+                        NotificationCenterService.shared.showWarning("NAS пока недоступен, блюда обновятся позже")
+                    }
                 }
-                Task {
-                               await NASPingService.shared.pingNAS()
-                           }
+
+                // 3. Пингуем NAS отдельно
+                Task { @MainActor in
+                    await NASPingService.shared.pingNAS()
+                }
+
+                if !DishSyncService.shared.areCredentialsPresent() {
+                    showKeychainSetup = true
+                }
             }
             .onChange(of: dishes, initial: false) { _, _ in
-                Task {
+                Task { @MainActor in
                     await DishSyncService.shared.exportDishesToJSON(context: context)
                 }
             }
             .onChange(of: scenePhase, initial: false) { _, newPhase in
                 if newPhase == .background {
-                    Task {
+                    Task { @MainActor in
                         await DishSyncService.shared.exportDishesToJSON(context: context)
                     }
                 }
