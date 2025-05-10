@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+
+# Xcode
+*.xcworkspace
+*.xcuserstate
+*.xcuserdata/
+DerivedData/
+build/
+
+# Swift Package Manager
+.build/
+Packages/
+.swiftpm/
+
+# SwiftUI Preview files
+*Preview Content*
+*Preview Assets*
+
+# Secrets
+.env
+Secrets.swift
+
+# Keychain helpers
+KeychainHelper.swift
+
+# Editor files
+*.swp
+*.lock
