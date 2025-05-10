@@ -8,8 +8,18 @@
 import SwiftUI
 import SwiftData
 
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        return true
+    }
+}
+
 @main
 struct Random4DinnerApp: App {
+
+    // Настройка SwiftData
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Dish.self, // Используем правильную модель данных
@@ -26,7 +36,9 @@ struct Random4DinnerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .overlay(NotificationBannerView())
                 .environment(\.modelContext, sharedModelContainer.mainContext) // Передаём контейнер данных
         }
     }
 }
+

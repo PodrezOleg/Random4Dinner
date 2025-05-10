@@ -6,3 +6,12 @@
 //
 
 import Foundation
+
+enum MealCategory: String, CaseIterable, Codable, Identifiable {
+    case breakfast = "Завтрак"
+    case lunch = "Обед"
+    case dinner = "Ужин"
+    case snack = "Перекус"
+
+    var id: String { self.rawValue }
+}

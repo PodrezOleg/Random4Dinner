@@ -7,18 +7,30 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		FF5FD9A72D9B354D005748F7 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = FF5FD9A62D9B354D005748F7 /* FirebaseAuth */; };
-		FF5FD9A92D9B354D005748F7 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = FF5FD9A82D9B354D005748F7 /* FirebaseCore */; };
-		FF5FD9AB2D9B354D005748F7 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = FF5FD9AA2D9B354D005748F7 /* FirebaseFirestore */; };
+		FF0579A72DCF89D500A35D35 /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = FF0579A62DCF89D500A35D35 /* .gitignore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		FF0579A62DCF89D500A35D35 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		FF1DAC172D7FA0AE0091D977 /* Random4Dinner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Random4Dinner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		FF700FB72DCE88CF008D329E /* Exceptions for "Random4Dinner" folder in "Random4Dinner" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = FF1DAC162D7FA0AE0091D977 /* Random4Dinner */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FF1DAC192D7FA0AE0091D977 /* Random4Dinner */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FF700FB72DCE88CF008D329E /* Exceptions for "Random4Dinner" folder in "Random4Dinner" target */,
+			);
 			path = Random4Dinner;
 			sourceTree = "<group>";
 		};
@@ -29,9 +41,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FF5FD9A92D9B354D005748F7 /* FirebaseCore in Frameworks */,
-				FF5FD9A72D9B354D005748F7 /* FirebaseAuth in Frameworks */,
-				FF5FD9AB2D9B354D005748F7 /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -41,6 +50,7 @@
 		FF1DAC0E2D7FA0AE0091D977 = {
 			isa = PBXGroup;
 			children = (
+				FF0579A62DCF89D500A35D35 /* .gitignore */,
 				FF1DAC192D7FA0AE0091D977 /* Random4Dinner */,
 				FF1DAC182D7FA0AE0091D977 /* Products */,
 			);
@@ -74,9 +84,6 @@
 			);
 			name = Random4Dinner;
 			packageProductDependencies = (
-				FF5FD9A62D9B354D005748F7 /* FirebaseAuth */,
-				FF5FD9A82D9B354D005748F7 /* FirebaseCore */,
-				FF5FD9AA2D9B354D005748F7 /* FirebaseFirestore */,
 			);
 			productName = Random4Dinner;
 			productReference = FF1DAC172D7FA0AE0091D977 /* Random4Dinner.app */;
@@ -107,7 +114,6 @@
 			mainGroup = FF1DAC0E2D7FA0AE0091D977;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				FF5FD9A52D9B354D005748F7 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FF1DAC182D7FA0AE0091D977 /* Products */;
@@ -124,6 +130,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FF0579A72DCF89D500A35D35 /* .gitignore in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -269,7 +276,8 @@
 				DEVELOPMENT_ASSET_PATHS = "\"Random4Dinner/Preview Content\"";
 				DEVELOPMENT_TEAM = MLNT49BZ43;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Random4Dinner/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.food-and-drink";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -300,7 +308,8 @@
 				DEVELOPMENT_ASSET_PATHS = "\"Random4Dinner/Preview Content\"";
 				DEVELOPMENT_TEAM = MLNT49BZ43;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Random4Dinner/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.food-and-drink";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -343,35 +352,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		FF5FD9A52D9B354D005748F7 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 11.11.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		FF5FD9A62D9B354D005748F7 /* FirebaseAuth */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = FF5FD9A52D9B354D005748F7 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAuth;
-		};
-		FF5FD9A82D9B354D005748F7 /* FirebaseCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = FF5FD9A52D9B354D005748F7 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseCore;
-		};
-		FF5FD9AA2D9B354D005748F7 /* FirebaseFirestore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = FF5FD9A52D9B354D005748F7 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseFirestore;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = FF1DAC0F2D7FA0AE0091D977 /* Project object */;
 }

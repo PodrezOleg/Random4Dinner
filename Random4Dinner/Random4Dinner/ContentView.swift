@@ -1,18 +1,3 @@
-//
-//  ContentView.swift
-//  Random4Dinner
-//
-//  Created by Oleg Podrez on 11.03.25.
-//
-
-//
-//  ContentView.swift
-//  Random4Dinner
-//
-//  Created by Oleg Podrez on 11.03.25.
-//
-
-//
 //  ContentView.swift
 //  Random4Dinner
 //
@@ -76,13 +61,20 @@ struct ContentView: View {
                 Task {
                     await DishSyncService.shared.importInitialDishesIfNeeded(context: context)
                 }
+                Task {
+                               await NASPingService.shared.pingNAS()
+                           }
             }
-            .onChange(of: dishes) { _ in
-                DishSyncService.shared.exportDishesToJSON(context: context)
+            .onChange(of: dishes, initial: false) { _, _ in
+                Task {
+                    await DishSyncService.shared.exportDishesToJSON(context: context)
+                }
             }
-            .onChange(of: scenePhase) { newPhase in
+            .onChange(of: scenePhase, initial: false) { _, newPhase in
                 if newPhase == .background {
-                    DishSyncService.shared.exportDishesToJSON(context: context)
+                    Task {
+                        await DishSyncService.shared.exportDishesToJSON(context: context)
+                    }
                 }
             }
             .alert("Ошибка", isPresented: Binding.constant(errorMessage != nil)) {
