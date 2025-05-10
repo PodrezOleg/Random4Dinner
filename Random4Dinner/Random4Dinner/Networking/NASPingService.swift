@@ -36,4 +36,27 @@ class NASPingService {
             print("🚫 Ошибка пинга NAS: \(error.localizedDescription)")
         }
     }
+
+    func isReachable() async -> Bool {
+        var request = URLRequest(url: testURL)
+        request.httpMethod = "HEAD"
+
+        let username = KeychainHelper.shared.read(key: "webdav_username") ?? ""
+        let password = KeychainHelper.shared.read(key: "webdav_password") ?? ""
+        let loginString = "\(username):\(password)"
+        if let loginData = loginString.data(using: .utf8)?.base64EncodedString() {
+            request.setValue("Basic \(loginData)", forHTTPHeaderField: "Authorization")
+        }
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse {
+                return (200...299).contains(httpResponse.statusCode)
+            }
+        } catch {
+            return false
+        }
+
+        return false
+    }
 }

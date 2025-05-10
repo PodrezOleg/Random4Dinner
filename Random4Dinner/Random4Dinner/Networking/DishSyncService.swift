@@ -14,38 +14,18 @@ enum DishSyncError: Error {
     case importFailed(Error)
 }
 
-
 class DishSyncService {
-    
+
     static let shared = DishSyncService()
-    
+
     private init() {
         startNetworkMonitor()
-        saveCredentialsIfNeeded()
     }
 
-    private func saveCredentialsIfNeeded() {
-        let defaults = UserDefaults.standard
-        if !defaults.bool(forKey: "credentialsSaved") {
-            KeychainHelper.shared.save(key: "webdav_username", value: "Podrez")
-            KeychainHelper.shared.save(key: "webdav_password", value: "Ki55mya55123!@#")
-            defaults.set(true, forKey: "credentialsSaved")
-            print("🔐 Учетные данные сохранены в Keychain")
-        }
-    }
-
-    func importInitialDishesIfNeeded(context: ModelContext) async {
-        let alreadyImported = UserDefaults.standard.bool(forKey: "didImportInitialDishes")
-        guard !alreadyImported else { return }
-
-        await syncDishes(context: context)
-        UserDefaults.standard.set(true, forKey: "didImportInitialDishes")
-    }
-
+    // MARK: - Публичный метод синхронизации с NAS
     func syncDishes(context: ModelContext) async {
         guard await isLocalNetworkReachable() else {
             print("🚫 Локальная сеть недоступна")
-            NotificationCenterService.shared.showWarning("Локальная сеть недоступна. Синхронизация не выполнена.")
             return
         }
 
@@ -54,45 +34,96 @@ class DishSyncService {
             print("📥 Загружено с NAS: \(remoteDishes.count) блюд")
 
             let localDishes = try context.fetch(FetchDescriptor<Dish>())
-            let localDict = Dictionary(uniqueKeysWithValues: localDishes.compactMap { dish in
+            var localDict = Dictionary(uniqueKeysWithValues: localDishes.compactMap { dish in
+                dish.id.map { ($0, dish) }
+            })
+
+            let remoteDict = Dictionary(uniqueKeysWithValues: remoteDishes.compactMap { dish in
                 dish.id.map { ($0, dish) }
             })
 
             var changesMade = false
+            var updatedCount = 0
+            var addedCount = 0
+            var deletedCount = 0
 
-            for dish in remoteDishes {
-                guard let id = dish.id else { continue }
+            for (id, remoteDish) in remoteDict {
+                if let localDish = localDict[id] {
+                    if localDish.name != remoteDish.name ||
+                        localDish.about != remoteDish.about ||
+                        localDish.imageBase64 != remoteDish.imageBase64 ||
+                        localDish.category != remoteDish.category {
 
-                if let local = localDict[id] {
-                    if local.name != dish.name || local.about != dish.about || local.imageBase64 != dish.imageBase64 {
-                        local.name = dish.name
-                        local.about = dish.about
-                        local.imageBase64 = dish.imageBase64
+                        localDish.name = remoteDish.name
+                        localDish.about = remoteDish.about
+                        localDish.imageBase64 = remoteDish.imageBase64
+                        localDish.category = remoteDish.category
+                        updatedCount += 1
                         changesMade = true
                     }
+                    localDict.removeValue(forKey: id)
                 } else {
-                    context
-                        .insert(
-                            Dish(
-                                name: dish.name,
-                                about: dish.about,
-                                imageBase64: dish.imageBase64,
-                                category: dish.category
-                            )
-                        )
+                    context.insert(Dish(from: remoteDish))
+                    addedCount += 1
                     changesMade = true
                 }
             }
 
+            for (_, dish) in localDict {
+                context.delete(dish)
+                deletedCount += 1
+                changesMade = true
+            }
+
             if changesMade {
                 try context.save()
+                let summary = "🔄 Обновлены: \(updatedCount), ➕ Добавлены: \(addedCount), ❌ Удалены: \(deletedCount)"
+                NotificationCenterService.shared.showSuccess(summary)
+                print("✅ Синхронизация завершена\n\(summary)")
+            } else {
+                print("⏩ Синхронизация: нет изменений")
+                NotificationCenterService.shared.showSuccess("⏩ Нет изменений, данные актуальны")
             }
         } catch {
             print("❌ Ошибка синхронизации: \(error)")
-            NotificationCenterService.shared.showError("Ошибка синхронизации", resolution: "Проверьте подключение к NAS или доступ к файлу dishes.json")
+            NotificationCenterService.shared.showError(
+                "Не удалось синхронизировать блюда с NAS",
+                resolution: "Проверьте подключение к сети NAS или повторите позже"
+            )
         }
     }
 
+    // MARK: - Импорт из локального файла JSON
+    func importDishesFromLocalJSON(context: ModelContext) {
+        let url = getDocumentsDirectory().appendingPathComponent("dishes.json")
+        guard let data = try? Data(contentsOf: url) else { return }
+
+        do {
+            let container = try JSONDecoder().decode(DishesContainer.self, from: data)
+            for dish in container.dishes {
+                if let existing = try? context.fetch(FetchDescriptor<Dish>()).first(where: { $0.id == dish.id }) {
+                    existing.update(from: dish)
+                } else {
+                    context.insert(Dish(from: dish))
+                }
+            }
+            try context.save()
+            print("📦 Импорт из локального JSON завершён")
+
+            // ⏱️ Запускаем sync через 5 секунд
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                NotificationCenterService.shared.showInfo("Попытка синхронизации с NAS...")
+                Task {
+                    await DishSyncService.shared.syncDishes(context: context)
+                }
+            }
+
+        } catch {
+            print("⚠️ Ошибка импорта из локального JSON: \(error)")
+        }
+    }
+
+    // MARK: - Экспорт и сохранение в NAS
     func exportDishesToJSON(context: ModelContext) async {
         do {
             let dishes = try context.fetch(FetchDescriptor<Dish>())
@@ -107,7 +138,6 @@ class DishSyncService {
             }
             let container = DishesContainer(dishes: encodedDishes)
             let jsonData = try JSONEncoder().encode(container)
-
             let url = getDocumentsDirectory().appendingPathComponent("dishes.json")
 
             let existingData = try? Data(contentsOf: url)
@@ -116,18 +146,19 @@ class DishSyncService {
                 print("✅ Данные экспортированы в JSON: \(url)")
                 try await APIService.shared.uploadDishes(encodedDishes)
                 print("📤 Отправлено на NAS: \(encodedDishes.count) блюд")
-                NotificationCenterService.shared.showSuccess("Блюда успешно отправлены на сервер")
             } else {
                 print("⏩ Нет изменений, экспорт не требуется")
-                NotificationCenterService.shared.showWarning("Нет изменений, отправка не требуется")
             }
         } catch {
             print("❌ Ошибка экспорта: \(error)")
-            NotificationCenterService.shared.showError("Ошибка экспорта блюд", resolution: "Проверьте подключение к NAS и корректность формата JSON")
+            NotificationCenterService.shared.showError(
+                "Ошибка при экспорте данных",
+                resolution: "Проверьте файл dishes.json или соединение с NAS"
+            )
         }
     }
-    
-    private func isLocalNetworkReachable() async -> Bool {
+
+     func isLocalNetworkReachable() async -> Bool {
         let config = URLSessionConfiguration.default
         config.waitsForConnectivity = false
         let session = URLSession(configuration: config)
@@ -161,5 +192,11 @@ class DishSyncService {
         }
         let queue = DispatchQueue(label: "NetworkMonitor")
         monitor.start(queue: queue)
+    }
+
+    func areCredentialsPresent() -> Bool {
+        let username = KeychainHelper.shared.read(key: "webdav_username")
+        let password = KeychainHelper.shared.read(key: "webdav_password")
+        return !(username?.isEmpty ?? true) && !(password?.isEmpty ?? true)
     }
 }
