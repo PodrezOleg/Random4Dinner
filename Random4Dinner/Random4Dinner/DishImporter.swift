@@ -9,7 +9,12 @@ import SwiftData
 import SwiftUI
 
 func importDish(from decod: DishDECOD, context: ModelContext) {
-    let dish = Dish(name: decod.name, about: decod.about, imageBase64: decod.imageBase64, category: decod.category)
+    let dish = Dish(
+        name: decod.name ?? "",
+        about: decod.about ?? "",
+        imageBase64: decod.imageBase64 ?? "",
+        category: decod.category
+    )
     context.insert(dish)
 }
 
