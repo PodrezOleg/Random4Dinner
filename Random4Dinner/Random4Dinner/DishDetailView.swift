@@ -12,7 +12,9 @@ struct DishDetailView: View {
     
     var body: some View {
         VStack {
-            if let imageData = dish.imageBase64, let uiImage = UIImage(data: Data(base64Encoded: imageData) ?? Data()) {
+            if let base64 = dish.imageBase64,
+               let imageData = Data(base64Encoded: base64),
+               let uiImage = UIImage(data: imageData) {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFit()

@@ -72,7 +72,7 @@ struct AddDishView: View {
                         let newDish = Dish(
                             name: name,
                             about: about,
-                            imageBase64: imageData?.base64EncodedString(),
+                            imageBase64: imageData?.base64EncodedString() ?? "",
                             category: selectedCategory
                         )
                         context.insert(newDish)

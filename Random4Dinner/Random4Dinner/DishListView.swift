@@ -11,17 +11,29 @@ import SwiftData
 
 struct DishListView: View {
     @Environment(\.modelContext) private var context
-    @Query private var dishes: [Dish]
+    @Query private var allDishes: [Dish]
+    
+    private var uniqueDishes: [Dish] {
+        var seen = Set<UUID>()
+        return allDishes.filter { dish in
+            if seen.contains(dish.id) {
+                return false
+            } else {
+                seen.insert(dish.id)
+                return true
+            }
+        }
+    }
     
     var body: some View {
         NavigationView {
             List {
-                ForEach(dishes) { dish in
+                ForEach(uniqueDishes) { dish in
                     DishRowView(dish: dish)
                 }
                 .onDelete { indexSet in
                     for index in indexSet {
-                        context.delete(dishes[index])
+                        context.delete(uniqueDishes[index])
                     }
                     do {
                         try context.save()

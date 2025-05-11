@@ -41,7 +41,9 @@ class NotificationCenterService: ObservableObject {
     }
 
     func showError(_ message: String, resolution: String) {
-        currentNotification = AppNotification(type: .error(message, resolution: resolution))
+        Task { @MainActor in
+            currentNotification = AppNotification(type: .error(message, resolution: resolution))
+        }
     }
 
     func dismiss() {
@@ -49,10 +51,14 @@ class NotificationCenterService: ObservableObject {
     }
 
     private func showAutoDismiss(_ type: AppNotificationType) {
-        currentNotification = AppNotification(type: type)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            if self.currentNotification?.type == type {
-                self.currentNotification = nil
+        Task { @MainActor in
+            currentNotification = AppNotification(type: type)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            Task { @MainActor in
+                if self.currentNotification?.type == type {
+                    self.currentNotification = nil
+                }
             }
         }
     }
