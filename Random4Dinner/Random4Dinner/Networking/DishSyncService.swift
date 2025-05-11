@@ -167,6 +167,12 @@ class DishSyncService {
 
                 if let localDish = localDict[id] {
                     localDish.updateFromDecoded(decoded)
+                    if let imagePath = decoded.imageBase64 {
+                        let imageURL = LocalStorageHelper.documentsDirectory.appendingPathComponent(imagePath)
+                        if let imageData = try? Data(contentsOf: imageURL) {
+                            localDish.imageBase64 = imageData.base64EncodedString()
+                        }
+                    }
                     updatedCount += 1
                     changesMade = true
                     localDict.removeValue(forKey: id)
@@ -174,6 +180,14 @@ class DishSyncService {
                     // Проверим, не существует ли уже объект с таким ID в контексте (защита от дубликатов)
                     if try context.fetch(FetchDescriptor<Dish>(predicate: #Predicate { $0.id == id })).isEmpty {
                         context.insert(Dish(from: decoded))
+                        if let id = decoded.id,
+                           let imagePath = decoded.imageBase64 {
+                            let imageURL = LocalStorageHelper.documentsDirectory.appendingPathComponent(imagePath)
+                            if let imageData = try? Data(contentsOf: imageURL),
+                               let newDish = try? context.fetch(FetchDescriptor<Dish>(predicate: #Predicate { $0.id == id })).first {
+                                newDish.imageBase64 = imageData.base64EncodedString()
+                            }
+                        }
                         addedCount += 1
                         changesMade = true
                     } else {
@@ -253,26 +267,33 @@ class DishSyncService {
         do {
             let dishes = try context.fetch(FetchDescriptor<Dish>())
             let uniqueDishes = Dictionary(grouping: dishes, by: \.id).compactMapValues { $0.first }.values
-            let encodedDishes = uniqueDishes.map {
-                DishDECOD(
-                    id: $0.id,
-                    name: $0.name,
-                    about: $0.about,
-                    imageBase64: $0.imageBase64,
-                    category: $0.category ?? .lunch
+            let encodedDishes = try uniqueDishes.map { dish -> DishDECOD in
+                var imagePath: String? = nil
+                if let base64 = dish.imageBase64,
+                   let imageData = Data(base64Encoded: base64) {
+                    do {
+                        imagePath = try LocalStorageHelper.saveImage(data: imageData, for: dish.id)
+                    } catch {
+                        print("❌ Ошибка при сохранении изображения для \(dish.id): \(error)")
+                    }
+                }
+                return DishDECOD(
+                    id: dish.id,
+                    name: dish.name,
+                    about: dish.about,
+                    imageBase64: imagePath, // сохраняем путь, не base64
+                    category: dish.category ?? .lunch
                 )
             }
 
             let container = DishesContainer(dishes: encodedDishes)
             let jsonData = try JSONEncoder().encode(container)
-            let url = getDocumentsDirectory().appendingPathComponent("dishes.json")
+            let url = LocalStorageHelper.dishesJSONURL
 
-            // Только если данные реально изменились
             let existingData = try? Data(contentsOf: url)
             if existingData != jsonData {
                 try jsonData.write(to: url)
                 print("✅ Данные экспортированы в JSON: \(url)")
-
                 try await APIService.shared.uploadDishes(encodedDishes)
                 print("📤 Отправлено на NAS: \(encodedDishes.count) блюд")
             } else {

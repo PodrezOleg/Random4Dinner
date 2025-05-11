@@ -20,16 +20,28 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				LocalStorage/dishes.json,
 			);
 			target = FF1DAC162D7FA0AE0091D977 /* Random4Dinner */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		FFFC93712DD13F1800BF0DED /* Exceptions for "Random4Dinner" folder in "Compile Sources" phase from "Random4Dinner" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = FF1DAC132D7FA0AE0091D977 /* Sources */;
+			membershipExceptions = (
+				LocalStorage/dishes.json,
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FF1DAC192D7FA0AE0091D977 /* Random4Dinner */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				FF700FB72DCE88CF008D329E /* Exceptions for "Random4Dinner" folder in "Random4Dinner" target */,
+				FFFC93712DD13F1800BF0DED /* Exceptions for "Random4Dinner" folder in "Compile Sources" phase from "Random4Dinner" target */,
 			);
 			path = Random4Dinner;
 			sourceTree = "<group>";

@@ -1,0 +1,7 @@
+# pack-refs with: peeled fully-peeled sorted 
+552f75b8592411b3057376caa479012e4dcb7cc3 refs/heads/Api
+2e9e1de78ad81c6c63d1d2bd7d0419bed7cbe0c0 refs/heads/Server-synchronization
+f18c9e911caadbd6b147b890cff393db9abfe6b8 refs/heads/UI-improvement
+e72085fd9f5551eed72dd8762d7a1b5ec37e31ce refs/heads/main
+2e9e1de78ad81c6c63d1d2bd7d0419bed7cbe0c0 refs/pull/1/head
+009910f5131d60645a5258536a5990453f6a0006 refs/pull/1/merge
