@@ -27,8 +27,8 @@ class DishSyncService {
     private func saveCredentialsIfNeeded() {
         let defaults = UserDefaults.standard
         if !defaults.bool(forKey: "credentialsSaved") {
-            KeychainHelper.shared.save(key: "webdav_username", value: "Podrez")
-            KeychainHelper.shared.save(key: "webdav_password", value: "Ki55mya55123!@#")
+            KeychainHelper.shared.save(key: "webdav_username", value: "")
+            KeychainHelper.shared.save(key: "webdav_password", value: "")
             defaults.set(true, forKey: "credentialsSaved")
             print("🔐 Учетные данные сохранены в Keychain")
         }
