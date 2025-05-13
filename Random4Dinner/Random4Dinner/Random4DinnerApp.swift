@@ -7,17 +7,30 @@
 
 import SwiftUI
 import SwiftData
+import GoogleSignIn
 
 
-class AppDelegate: NSObject, UIApplicationDelegate {
-    func application(_ application: UIApplication,
-                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+class GoogleAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
+    ) -> Bool {
+        GIDSignIn.sharedInstance.configuration = GIDConfiguration(
+            clientID: "336346687083-oq9bejub82mf3e7740bv8umrvpv5jg38.apps.googleusercontent.com"
+        )
         return true
+    }
+
+    func application(_ app: UIApplication,
+                     open url: URL,
+                     options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
+        return GIDSignIn.sharedInstance.handle(url)
     }
 }
 
 @main
 struct Random4DinnerApp: App {
+    @UIApplicationDelegateAdaptor(GoogleAppDelegate.self) var appDelegate
 
     // Настройка SwiftData
     var sharedModelContainer: ModelContainer = {
