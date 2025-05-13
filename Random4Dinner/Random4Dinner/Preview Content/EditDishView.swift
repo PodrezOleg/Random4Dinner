@@ -78,7 +78,7 @@ struct EditDishView: View {
                 Button("Сохранить") {
                     try? context.save()
                     Task {
-                        await DishSyncService.shared.exportDishesToJSON(context: context)
+                        await DishSyncService.shared.exportToGoogleDrive(context: context)
                     }
                     dismiss()
                 }

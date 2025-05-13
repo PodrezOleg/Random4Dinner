@@ -38,7 +38,7 @@ struct DishListView: View {
                     do {
                         try context.save()
                         Task {
-                            await DishSyncService.shared.exportDishesToJSON(context: context)
+                            await DishSyncService.shared.exportToGoogleDrive(context: context)
                         }
                     } catch {
                         print("❌ Ошибка при удалении блюда: \(error)")
@@ -55,11 +55,11 @@ struct DishListView: View {
             }
         }
         .task {
-            await DishSyncService.shared.exportDishesToJSON(context: context)
+            await DishSyncService.shared.exportToGoogleDrive(context: context)
         }
         .onDisappear {
             Task {
-                await DishSyncService.shared.exportDishesToJSON(context: context)
+                await DishSyncService.shared.exportToGoogleDrive(context: context)
             }
         }
     }

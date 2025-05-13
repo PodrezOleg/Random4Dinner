@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		FF0579A72DCF89D500A35D35 /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = FF0579A62DCF89D500A35D35 /* .gitignore */; };
+		FF36CD662DD3720B00892F3E /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = FF36CD652DD3720B00892F3E /* GoogleSignIn */; };
+		FF36CD682DD3720B00892F3E /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = FF36CD672DD3720B00892F3E /* GoogleSignInSwift */; };
+		FFACC1812DD3AEB50039FC0F /* GoogleAPIClientForRESTCore in Frameworks */ = {isa = PBXBuildFile; productRef = FFACC1802DD3AEB50039FC0F /* GoogleAPIClientForRESTCore */; };
+		FFACC1832DD3B18F0039FC0F /* GoogleAPIClientForREST_Drive in Frameworks */ = {isa = PBXBuildFile; productRef = FFACC1822DD3B18F0039FC0F /* GoogleAPIClientForREST_Drive */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,6 +57,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FFACC1832DD3B18F0039FC0F /* GoogleAPIClientForREST_Drive in Frameworks */,
+				FF36CD662DD3720B00892F3E /* GoogleSignIn in Frameworks */,
+				FFACC1812DD3AEB50039FC0F /* GoogleAPIClientForRESTCore in Frameworks */,
+				FF36CD682DD3720B00892F3E /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -96,6 +104,10 @@
 			);
 			name = Random4Dinner;
 			packageProductDependencies = (
+				FF36CD652DD3720B00892F3E /* GoogleSignIn */,
+				FF36CD672DD3720B00892F3E /* GoogleSignInSwift */,
+				FFACC1802DD3AEB50039FC0F /* GoogleAPIClientForRESTCore */,
+				FFACC1822DD3B18F0039FC0F /* GoogleAPIClientForREST_Drive */,
 			);
 			productName = Random4Dinner;
 			productReference = FF1DAC172D7FA0AE0091D977 /* Random4Dinner.app */;
@@ -126,6 +138,8 @@
 			mainGroup = FF1DAC0E2D7FA0AE0091D977;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				FF36CD642DD3720B00892F3E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				FFACC17F2DD3AEB50039FC0F /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FF1DAC182D7FA0AE0091D977 /* Products */;
@@ -364,6 +378,48 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		FF36CD642DD3720B00892F3E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+		FFACC17F2DD3AEB50039FC0F /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/google-api-objectivec-client-for-rest.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FF36CD652DD3720B00892F3E /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FF36CD642DD3720B00892F3E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		FF36CD672DD3720B00892F3E /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FF36CD642DD3720B00892F3E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+		FFACC1802DD3AEB50039FC0F /* GoogleAPIClientForRESTCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FFACC17F2DD3AEB50039FC0F /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */;
+			productName = GoogleAPIClientForRESTCore;
+		};
+		FFACC1822DD3B18F0039FC0F /* GoogleAPIClientForREST_Drive */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FFACC17F2DD3AEB50039FC0F /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */;
+			productName = GoogleAPIClientForREST_Drive;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = FF1DAC0F2D7FA0AE0091D977 /* Project object */;
 }
