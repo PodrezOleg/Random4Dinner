@@ -25,6 +25,13 @@ class GoogleAuthManager: ObservableObject {
     }
 
     func signIn(presenting: UIViewController, completion: @escaping (Bool) -> Void) {
+        guard let clientID = Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String else {
+            print("❌ Не удалось найти clientID в Info.plist")
+            completion(false)
+            return
+        }
+
+        let config = GIDConfiguration(clientID: clientID)
 
         Task {
             do {

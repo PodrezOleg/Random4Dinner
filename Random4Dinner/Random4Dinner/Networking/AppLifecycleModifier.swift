@@ -17,27 +17,29 @@ struct AppLifecycleModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onAppear {
-                            // 🔐 Авторизация через Google
-                            if !GoogleAuthManager.shared.isSignedIn {
-                                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                                   let rootVC = windowScene.windows.first?.rootViewController {
-                                    GoogleAuthManager.shared.signIn(presenting: rootVC) { success in
-                                        print(success ? "✅ Вход выполнен" : "❌ Вход не выполнен")
-                                    }
-                                }
-                            }
-
-                            // 🔄 Синхронизация
-                            Task {
-                                await MainActor.run {
-                                    DishSyncService.shared.removeDuplicateDishes(context: context)
-                                    DishSyncService.shared.setLatestContext(context)
-                                }
-
-                                await DishSyncService.shared.importFromGoogleDrive(context: context)
-                                await DishSyncService.shared.syncDishes(context: context)
+                DispatchQueue.main.async {
+                    // 🔐 Авторизация через Google
+                    if !GoogleAuthManager.shared.isSignedIn {
+                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                           let rootVC = windowScene.windows.first?.rootViewController {
+                            GoogleAuthManager.shared.signIn(presenting: rootVC) { success in
+                                print(success ? "✅ Вход выполнен" : "❌ Вход не выполнен")
                             }
                         }
+                    }
+                }
+
+                // 🔄 Синхронизация
+                Task {
+                    await MainActor.run {
+                        DishSyncService.shared.removeDuplicateDishes(context: context)
+                        DishSyncService.shared.setLatestContext(context)
+                    }
+
+                    await DishSyncService.shared.importFromGoogleDrive(context: context)
+                    await DishSyncService.shared.syncDishes(context: context)
+                }
+            }
             .onChange(of: dishes, initial: false) { _, _ in
                 Task { @MainActor in
                     await DishSyncService.shared.exportToGoogleDrive(context: context)
