@@ -31,10 +31,9 @@ class GoogleAuthManager: ObservableObject {
             return
         }
 
-        let config = GIDConfiguration(clientID: clientID)
-
         Task {
             do {
+                _ = GIDConfiguration(clientID: clientID)
                 let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: presenting)
                 self.user = result.user
                 print("✅ Пользователь вошёл: \(result.user.profile?.email ?? "")")
