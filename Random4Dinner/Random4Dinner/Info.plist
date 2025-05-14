@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLSchemes</key>
+	<string>com.googleusercontent.apps.336346687083-oq9bejub82mf3e7740bv8umrvpv5jg38</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
@@ -51,10 +53,9 @@
 		<string>google</string>
 		<string>comgoogleoauth2</string>
 		<string>comgooglechrome</string>
-		<string>com.googleusercontent.apps.336346687083-oq9bejub82mf3e7740bv8umrvpv5jg38</string>
 	</array>
 	<key>GIDClientID</key>
-	<string>123456789012-abc123def456.apps.googleusercontent.com</string>
+	<string>336346687083-qo9bejub82mf3e774obv8umrvpv5jg38.apps.googleusercontent.com</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
