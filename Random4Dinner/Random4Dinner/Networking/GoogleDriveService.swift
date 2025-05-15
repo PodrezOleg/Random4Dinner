@@ -8,6 +8,7 @@
 import Foundation
 import GoogleSignIn
 import GoogleAPIClientForREST_Drive
+import SwiftData
 
 class GoogleDriveService {
     static let shared = GoogleDriveService()
@@ -15,12 +16,35 @@ class GoogleDriveService {
 
     private let driveService = GTLRDriveService()
 
-    func configureAuthorization() {
-        driveService.authorizer = GoogleAuthManager.shared.authorizer
+    enum DriveServiceError: Error {
+        case notAuthorized
+    }
+
+    func configureAuthorization() throws {
+        guard let auth = GoogleAuthManager.shared.authorizer else {
+            throw DriveServiceError.notAuthorized
+        }
+        driveService.authorizer = auth
     }
     
+    @MainActor
+    func importFromGoogleDrive(context: ModelContext) async {
+      guard GoogleAuthManager.shared.isSignedIn else {
+        print("❌ Попытка импорта без входа в Google")
+        NotificationCenterService.shared.showError(
+          "Нужно войти в Google", resolution: "Пожалуйста, авторизуйтесь"
+        )
+        return
+      }
+    }
+
     func uploadDishesJSON(_ data: Data, fileName: String = "dishes.json", completion: ((Result<String, Error>) -> Void)? = nil) {
-        configureAuthorization()
+        do {
+            try configureAuthorization()
+        } catch {
+            completion?(.failure(error))
+            return
+        }
 
         let file = GTLRDrive_File()
         file.name = fileName
@@ -51,9 +75,18 @@ class GoogleDriveService {
         }
     }
 
-    func downloadDishesJSON(fileID: String = "dishes.json", completion: @escaping (Result<Data, Error>) -> Void) {
-        configureAuthorization()
+    func downloadDishesJSON(
+          fileID: String = "dishes.json",
+          completion: @escaping (Result<Data, Error>) -> Void
+      ) {
+        do {
+            try configureAuthorization()
+        } catch {
+            completion(.failure(error))
+            return
+        }
 
+        // Query for the file by name
         let query = GTLRDriveQuery_FilesList.query()
         query.q = "name='\(fileID)'"
         query.spaces = "drive"
@@ -71,10 +104,15 @@ class GoogleDriveService {
                 let fileID = file.identifier
             else {
                 print("⚠️ Файл не найден")
-                completion(.failure(NSError(domain: "", code: 404, userInfo: [NSLocalizedDescriptionKey: "Файл не найден"])))
+                completion(.failure(NSError(
+                    domain: "",
+                    code: 404,
+                    userInfo: [NSLocalizedDescriptionKey: "Файл не найден"]
+                )))
                 return
             }
 
+            // Download the found file
             let downloadQuery = GTLRDriveQuery_FilesGet.queryForMedia(withFileId: fileID)
             self.driveService.executeQuery(downloadQuery) { (_, fileData, error) in
                 if let error = error {
@@ -85,14 +123,23 @@ class GoogleDriveService {
                     completion(.success(data))
                 } else {
                     print("⚠️ Данные не получены")
-                    completion(.failure(NSError(domain: "", code: 500, userInfo: [NSLocalizedDescriptionKey: "Данные не получены"])))
+                    completion(.failure(NSError(
+                        domain: "",
+                        code: 500,
+                        userInfo: [NSLocalizedDescriptionKey: "Данные не получены"]
+                    )))
                 }
             }
         }
     }
 
     func uploadImage(_ data: Data, fileName: String, completion: ((Result<String, Error>) -> Void)? = nil) {
-        configureAuthorization()
+        do {
+            try configureAuthorization()
+        } catch {
+            completion?(.failure(error))
+            return
+        }
 
         let file = GTLRDrive_File()
         file.name = fileName
@@ -125,7 +172,12 @@ class GoogleDriveService {
     }
 
     func downloadImage(fileID: String, completion: @escaping (Result<Data, Error>) -> Void) {
-        configureAuthorization()
+        do {
+            try configureAuthorization()
+        } catch {
+            completion(.failure(error))
+            return
+        }
 
         let query = GTLRDriveQuery_FilesGet.queryForMedia(withFileId: fileID)
         driveService.executeQuery(query) { (_, result, error) in
@@ -142,4 +194,3 @@ class GoogleDriveService {
         }
     }
 }
-
