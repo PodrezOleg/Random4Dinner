@@ -17,29 +17,27 @@ class GoogleAuthManager: ObservableObject {
     @Published var user: GIDGoogleUser? = nil
 
     var isSignedIn: Bool {
-        return GIDSignIn.sharedInstance.currentUser != nil
+        GIDSignIn.sharedInstance.currentUser != nil
     }
 
-    var authorizer: GTMFetcherAuthorizationProtocol? {
-        return GIDSignIn.sharedInstance.currentUser?.fetcherAuthorizer
+    var authorizer: GTMSessionFetcherAuthorizer? {
+        GIDSignIn.sharedInstance.currentUser?.fetcherAuthorizer as? GTMSessionFetcherAuthorizer
     }
-
+    
+    @MainActor
     func signIn(presenting: UIViewController, completion: @escaping (Bool) -> Void) {
-        guard let clientID = Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String else {
-            print("❌ Не удалось найти clientID в Info.plist")
-            completion(false)
-            return
-        }
-
         Task {
             do {
-                _ = GIDConfiguration(clientID: clientID)
-                let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: presenting)
+                let result = try await GIDSignIn.sharedInstance.signIn(
+                    withPresenting: presenting,
+                    hint: nil,
+                    additionalScopes: ["https://www.googleapis.com/auth/drive.file"]
+                )
                 self.user = result.user
-                print("✅ Пользователь вошёл: \(result.user.profile?.email ?? "")")
+                print("✅ Вошли как \(result.user.profile?.email ?? "")")
                 completion(true)
             } catch {
-                print("❌ Ошибка входа: \(error.localizedDescription)")
+                print("❌ Ошибка входа: \(error)")
                 completion(false)
             }
         }

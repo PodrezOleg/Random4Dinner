@@ -16,7 +16,7 @@ class GoogleAppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
     ) -> Bool {
         GIDSignIn.sharedInstance.configuration = GIDConfiguration(
-            clientID: "336346687083-oq9bejub82mf3e7740bv8umrvpv5jg38.apps.googleusercontent.com"
+            clientID: "336346687083-pl7ar4iqupk08hjue4mlbkfijd1b0ae9.apps.googleusercontent.com"
         )
         return true
     }
