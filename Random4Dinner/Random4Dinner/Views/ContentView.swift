@@ -27,6 +27,7 @@ struct ContentView: View {
                 errorMessage: $errorMessage
             )
         }
+        .modifier(AppLifecycleModifier(errorMessage: $errorMessage)) 
     }
 }
     

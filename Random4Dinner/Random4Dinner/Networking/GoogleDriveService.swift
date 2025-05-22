@@ -45,32 +45,54 @@ class GoogleDriveService {
             completion?(.failure(error))
             return
         }
-
-        let file = GTLRDrive_File()
-        file.name = fileName
-        file.mimeType = "application/json"
-
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        do {
-            try data.write(to: tempURL)
-        } catch {
-            print("❌ Ошибка записи временного файла: \(error)")
-            completion?(.failure(error))
-            return
-        }
-
-        let uploadParams = GTLRUploadParameters(fileURL: tempURL, mimeType: "application/json")
-        let query = GTLRDriveQuery_FilesCreate.query(withObject: file, uploadParameters: uploadParams)
-
-        driveService.executeQuery(query) { (_, result, error) in
+        // Шаг 1. Найти файл с таким именем
+        let searchQuery = GTLRDriveQuery_FilesList.query()
+        searchQuery.q = "name='\(fileName)' and trashed=false"
+        searchQuery.spaces = "drive"
+        driveService.executeQuery(searchQuery) { [weak self] (_, result, error) in
+            guard let self = self else { return }
             if let error = error {
-                print("❌ Ошибка загрузки JSON: \(error.localizedDescription)")
                 completion?(.failure(error))
-            } else if let file = result as? GTLRDrive_File, let fileID = file.identifier {
-                print("✅ JSON файл загружен в Google Drive с ID: \(fileID)")
-                completion?(.success(fileID))
+                return
+            }
+            let fileList = result as? GTLRDrive_FileList
+            let existingFile = fileList?.files?.first
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+            do {
+                try data.write(to: tempURL)
+            } catch {
+                completion?(.failure(error))
+                return
+            }
+            let uploadParams = GTLRUploadParameters(fileURL: tempURL, mimeType: "application/json")
+            if let file = existingFile, let fileID = file.identifier {
+                // Шаг 2. Файл найден, делаем update
+                let updateFile = GTLRDrive_File()
+                updateFile.name = fileName
+                updateFile.mimeType = "application/json"
+                let updateQuery = GTLRDriveQuery_FilesUpdate.query(withObject: updateFile, fileId: fileID, uploadParameters: uploadParams)
+                self.driveService.executeQuery(updateQuery) { (_, updateResult, updateError) in
+                    if let updateError = updateError {
+                        completion?(.failure(updateError))
+                    } else {
+                        completion?(.success(fileID))
+                    }
+                }
             } else {
-                print("⚠️ Неизвестный результат при загрузке файла")
+                // Шаг 3. Файла нет — создаём новый
+                let newFile = GTLRDrive_File()
+                newFile.name = fileName
+                newFile.mimeType = "application/json"
+                let createQuery = GTLRDriveQuery_FilesCreate.query(withObject: newFile, uploadParameters: uploadParams)
+                self.driveService.executeQuery(createQuery) { (_, createResult, createError) in
+                    if let createError = createError {
+                        completion?(.failure(createError))
+                    } else if let file = createResult as? GTLRDrive_File, let fileID = file.identifier {
+                        completion?(.success(fileID))
+                    } else {
+                        completion?(.failure(NSError(domain: "", code: 500, userInfo: [NSLocalizedDescriptionKey: "Неизвестный результат"])))
+                    }
+                }
             }
         }
     }

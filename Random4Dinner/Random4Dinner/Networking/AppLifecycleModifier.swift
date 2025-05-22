@@ -11,33 +11,40 @@ import SwiftData
 struct AppLifecycleModifier: ViewModifier {
     @Environment(\.modelContext) private var context
     @Query private var dishes: [Dish]
-
     @Binding var errorMessage: String?
+    @State private var needsLoginResolver = false
 
     func body(content: Content) -> some View {
         content
-            .onAppear {
-                DispatchQueue.main.async {
-                    // 🔐 Авторизация через Google
-                    if !GoogleAuthManager.shared.isSignedIn {
-                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                           let rootVC = windowScene.windows.first?.rootViewController {
-                            GoogleAuthManager.shared.signIn(presenting: rootVC) { success in
+            .background(
+                Group {
+                    if needsLoginResolver {
+                        ViewControllerResolver { controller in
+                            GoogleAuthManager.shared.signIn(presenting: controller) { success in
+                                needsLoginResolver = false
                                 print(success ? "✅ Вход выполнен" : "❌ Вход не выполнен")
+                                if success {
+                                    Task { @MainActor in
+                                        await DishSyncService.shared.importFromGoogleDrive(context: context)
+                                        await DishSyncService.shared.syncDishes(context: context)
+                                    }
+                                } else {
+                                    errorMessage = "Не удалось войти в Google"
+                                }
                             }
                         }
+                        .frame(width: 0, height: 0)
                     }
                 }
-
-                // 🔄 Синхронизация
-                Task {
-                    await MainActor.run {
-                        DishSyncService.shared.removeDuplicateDishes(context: context)
-                        DishSyncService.shared.setLatestContext(context)
+            )
+            .onAppear {
+                if !GoogleAuthManager.shared.isSignedIn {
+                    needsLoginResolver = true
+                } else {
+                    Task { @MainActor in
+                        await DishSyncService.shared.importFromGoogleDrive(context: context)
+                        await DishSyncService.shared.syncDishes(context: context)
                     }
-
-                    await DishSyncService.shared.importFromGoogleDrive(context: context)
-                    await DishSyncService.shared.syncDishes(context: context)
                 }
             }
             .onChange(of: dishes, initial: false) { _, _ in
