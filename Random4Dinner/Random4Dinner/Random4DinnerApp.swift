@@ -9,28 +9,8 @@ import SwiftUI
 import SwiftData
 import GoogleSignIn
 
-
-class GoogleAppDelegate: NSObject, UIApplicationDelegate {
-    func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
-    ) -> Bool {
-        GIDSignIn.sharedInstance.configuration = GIDConfiguration(
-            clientID: "336346687083-pl7ar4iqupk08hjue4mlbkfijd1b0ae9.apps.googleusercontent.com"
-        )
-        return true
-    }
-
-    func application(_ app: UIApplication,
-                     open url: URL,
-                     options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
-        return GIDSignIn.sharedInstance.handle(url)
-    }
-}
-
 @main
 struct Random4DinnerApp: App {
-    @UIApplicationDelegateAdaptor(GoogleAppDelegate.self) var appDelegate
 
     // Настройка SwiftData
     var sharedModelContainer: ModelContainer = {
@@ -46,12 +26,21 @@ struct Random4DinnerApp: App {
         }
     }()
 
+    init() {
+        // Здесь конфигурируем Google Sign-In один раз при запуске
+        GIDSignIn.sharedInstance.configuration = GIDConfiguration(
+            clientID: "336346687083-pl7ar4iqupk08hjue4mlbkfijd1b0ae9.apps.googleusercontent.com"
+        )
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .overlay(NotificationBannerView())
-                .environment(\.modelContext, sharedModelContainer.mainContext) // Передаём контейнер данных
+                .environment(\.modelContext, sharedModelContainer.mainContext)
+                .onOpenURL { url in
+                    GIDSignIn.sharedInstance.handle(url)
+                }
         }
     }
 }
-
