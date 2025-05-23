@@ -8,17 +8,16 @@
 import SwiftUI
 import SwiftData
 import GoogleSignIn
+import FirebaseCore
 
 @main
 struct Random4DinnerApp: App {
-
-    // Настройка SwiftData
+    // Настройка SwiftData на уровне структуры
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Dish.self, // Используем правильную модель данных
+            Dish.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
@@ -27,7 +26,9 @@ struct Random4DinnerApp: App {
     }()
 
     init() {
-        // Здесь конфигурируем Google Sign-In один раз при запуске
+        // Firebase
+        FirebaseManager.shared.configure()
+        // Google Sign-In
         GIDSignIn.sharedInstance.configuration = GIDConfiguration(
             clientID: "336346687083-pl7ar4iqupk08hjue4mlbkfijd1b0ae9.apps.googleusercontent.com"
         )

@@ -7,7 +7,6 @@
 
 
 import Foundation
-import FirebaseCore
 import GoogleSignIn
 
 final class AppServicesManager {
@@ -16,12 +15,7 @@ final class AppServicesManager {
     private init() {}
 
     func configure() {
-        // Инициализация Firebase
-        if FirebaseApp.app() == nil {
-            FirebaseApp.configure()
-        }
-
-        // Инициализация Google Sign-In
+        // Только инициализация Google Sign-In!
         GIDSignIn.sharedInstance.configuration = GIDConfiguration(
             clientID: "336346687083-pl7ar4iqupk08hjue4mlbkfijd1b0ae9.apps.googleusercontent.com"
         )
