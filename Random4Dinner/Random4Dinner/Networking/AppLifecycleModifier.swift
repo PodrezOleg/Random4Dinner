@@ -16,48 +16,67 @@ struct AppLifecycleModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(
-                Group {
-                    if needsLoginResolver {
-                        ViewControllerResolver { controller in
-                            GoogleAuthManager.shared.signIn(presenting: controller) { success in
-                                needsLoginResolver = false
-                                print(success ? "✅ Вход выполнен" : "❌ Вход не выполнен")
-                                if success {
-                                    Task { @MainActor in
-                                        await DishSyncService.shared.importFromGoogleDrive(context: context)
-                                        await DishSyncService.shared.syncDishes(context: context)
-                                    }
-                                } else {
-                                    errorMessage = "Не удалось войти в Google"
-                                }
-                            }
-                        }
-                        .frame(width: 0, height: 0)
-                    }
-                }
-            )
+            .background(loginResolverView)
             .onAppear {
                 if !GoogleAuthManager.shared.isSignedIn {
                     needsLoginResolver = true
                 } else {
                     Task { @MainActor in
-                        await DishSyncService.shared.importFromGoogleDrive(context: context)
-                        await DishSyncService.shared.syncDishes(context: context)
+                        do {
+                            try await DishSyncService.shared.syncDishes(context: context)
+                        } catch {
+                            errorMessage = error.localizedDescription
+                            print("Ошибка синхронизации: \(error)")
+                        }
                     }
                 }
             }
             .onChange(of: dishes, initial: false) { _, _ in
-                Task { @MainActor in
-                    await DishSyncService.shared.exportToGoogleDrive(context: context)
+                Task {
+                    do {
+                        try await DishSyncService.shared.syncDishes(context: context)
+                    } catch {
+                        errorMessage = error.localizedDescription
+                        print("Ошибка синхронизации: \(error)")
+                    }
                 }
             }
             .onChange(of: UIApplication.shared.connectedScenes.first?.activationState, initial: false) { _, newPhase in
                 if newPhase == .background {
-                    Task { @MainActor in
-                        await DishSyncService.shared.exportToGoogleDrive(context: context)
+                    Task {
+                        do {
+                            try await DishSyncService.shared.syncDishes(context: context)
+                        } catch {
+                            errorMessage = error.localizedDescription
+                            print("Ошибка синхронизации: \(error)")
+                        }
                     }
                 }
             }
+    }
+
+    @ViewBuilder
+    private var loginResolverView: some View {
+        if needsLoginResolver {
+            ViewControllerResolver { controller in
+                GoogleAuthManager.shared.signIn(presenting: controller) { success in
+                    needsLoginResolver = false
+                    print(success ? "✅ Вход выполнен" : "❌ Вход не выполнен")
+                    if success {
+                        Task { @MainActor in
+                            do {
+                                try await DishSyncService.shared.syncDishes(context: context)
+                            } catch {
+                                errorMessage = error.localizedDescription
+                                print("Ошибка синхронизации: \(error)")
+                            }
+                        }
+                    } else {
+                        errorMessage = "Не удалось войти в Google"
+                    }
+                }
+            }
+            .frame(width: 0, height: 0)
+        }
     }
 }

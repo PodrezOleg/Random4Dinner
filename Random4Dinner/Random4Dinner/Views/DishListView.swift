@@ -33,12 +33,16 @@ struct DishListView: View {
                 }
                 .onDelete { indexSet in
                     for index in indexSet {
-                        context.delete(uniqueDishes[index])
+                        let dish = uniqueDishes[index]
+                        context.delete(dish)
+                        Task {
+                            try? await DishSyncService.shared.deleteDishFromFirestore(dish)
+                        }
                     }
                     do {
                         try context.save()
                         Task {
-                            await DishSyncService.shared.exportToGoogleDrive(context: context)
+                            try? await DishSyncService.shared.syncDishes(context: context)
                         }
                     } catch {
                         print("❌ Ошибка при удалении блюда: \(error)")
@@ -55,11 +59,11 @@ struct DishListView: View {
             }
         }
         .task {
-            await DishSyncService.shared.exportToGoogleDrive(context: context)
+            try? await DishSyncService.shared.syncDishes(context: context)
         }
         .onDisappear {
             Task {
-                await DishSyncService.shared.exportToGoogleDrive(context: context)
+                try? await DishSyncService.shared.syncDishes(context: context)
             }
         }
     }

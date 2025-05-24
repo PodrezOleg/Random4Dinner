@@ -76,11 +76,22 @@ struct EditDishView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Сохранить") {
-                    try? context.save()
-                    Task {
-                        await DishSyncService.shared.exportToGoogleDrive(context: context)
+                    Task { @MainActor in
+                        do {
+                            try context.save()
+                            let decoded = DishDECOD(
+                                id: dish.id,
+                                name: dish.name,
+                                about: dish.about,
+                                imageBase64: dish.imageBase64,
+                                category: dish.category ?? .lunch
+                            )
+                            try await DishSyncService.shared.addOrUpdateDish(decoded, context: context)
+                        } catch {
+                            print("Ошибка при сохранении: \(error)")
+                        }
+                        dismiss()
                     }
-                    dismiss()
                 }
             }
 
@@ -94,3 +105,4 @@ struct EditDishView: View {
         }
     }
 }
+

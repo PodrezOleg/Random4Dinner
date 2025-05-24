@@ -7,20 +7,19 @@
 
 import UIKit
 import GoogleSignIn
+import FirebaseAuth
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        Task {
-            do {
-                let user = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
-                GoogleAuthManager.shared.user = user
-                print("🔁 Восстановили предыдущий вход: \(user.profile?.email ?? "")")
-            } catch {
-                print("⚠️ Нет сохранённой сессии: \(error)")
-            }
+        // Восстановить пользователя из Firebase (если есть)
+        if let firebaseUser = Auth.auth().currentUser {
+            GoogleAuthManager.shared.user = firebaseUser
+            print("🔁 Восстановили предыдущий Firebase вход: \(firebaseUser.email ?? firebaseUser.uid)")
+        } else {
+            print("⚠️ Нет сохранённой Firebase-сессии")
         }
         return true
     }

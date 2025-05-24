@@ -6,175 +6,165 @@
 //
 
 import Foundation
+import FirebaseFirestore
+import FirebaseAuth
 import SwiftData
-import Network
 
-enum DishSyncError: Error {
-    case exportFailed(Error)
-    case importFailed(Error)
-}
-
-class DishSyncService {
-    
+final class DishSyncService {
     static let shared = DishSyncService()
-    
-    private init() {
-        startNetworkMonitor()
-    }
-    
-    private var latestContext: ModelContext?
-    
-    func setLatestContext(_ context: ModelContext) {
-        latestContext = context
-    }
-    
-    // MARK: - Удаление дубликатов блюд по id
-    func removeDuplicateDishes(context: ModelContext) {
-        do {
-            let allDishes = try context.fetch(FetchDescriptor<Dish>())
-            var seen: Set<UUID> = []
-            var duplicates: [Dish] = []
-            
-            for dish in allDishes {
-                if seen.contains(dish.id) {
-                    duplicates.append(dish)
-                } else {
-                    seen.insert(dish.id)
-                }
-            }
-            
-            for duplicate in duplicates {
-                context.delete(duplicate)
-            }
-            
-            if !duplicates.isEmpty {
-                try context.save()
-                print("🧹 Удалено дубликатов блюд: \(duplicates.count)")
-                NotificationCenterService.shared.showInfo("🧹 Удалено дубликатов блюд: \(duplicates.count)")
+    private let db = Firestore.firestore()
+    private init() {}
+
+    /// Основная функция синхронизации: импорт из Firestore + экспорт новых/изменённых локальных блюд обратно в Firestore
+    func syncDishes(context: ModelContext) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw NSError(domain: "", code: 401, userInfo: [NSLocalizedDescriptionKey: "Нет авторизации"])
+        }
+
+        // 1. Импорт из Firestore (fetch)
+        let remoteDishes = try await fetchDishesFromFirestoreAsync(userId: userId)
+
+        // 2. Импортируем новые блюда из Firestore (если их нет локально или если обновлены)
+        let localDishes = try context.fetch(FetchDescriptor<Dish>())
+        let localDict = Dictionary(uniqueKeysWithValues: localDishes.map { ($0.id, $0) })
+        let remoteDict = Dictionary(uniqueKeysWithValues: remoteDishes.compactMap { dish in dish.id.map { ($0, dish) } })
+
+        for (id, remoteDish) in remoteDict {
+            if let local = localDict[id] {
+                // Можно добавить сравнение времени/контента для обновления, если нужно
+                local.updateFromDecoded(remoteDish)
             } else {
-                print("✅ Дубликатов блюд не найдено")
+                context.insert(Dish(from: remoteDish))
             }
-            
-        } catch {
-            print("❌ Ошибка при удалении дубликатов: \(error)")
-            NotificationCenterService.shared.showError(
-                "Ошибка при очистке базы от дубликатов",
-                resolution: "Проверьте данные вручную"
-            )
         }
+        try context.save()
+
+        // 3. Экспортируем новые/изменённые блюда в Firestore
+        try await exportLocalChangesToFirestoreAsync(userId: userId, context: context)
     }
-    
-    // MARK: - Импорт с Google Drive
-    func importFromGoogleDrive(context: ModelContext) async {
-        do {
-            let data = try await withCheckedThrowingContinuation { continuation in
-                GoogleDriveService.shared.downloadDishesJSON { result in
-                    switch result {
-                    case .success(let data):
-                        continuation.resume(returning: data)
-                    case .failure(let error):
-                        continuation.resume(throwing: error)
-                    }
-                }
-            }
-            let container = try JSONDecoder().decode(DishesContainer.self, from: data)
-            let localDishes = try context.fetch(FetchDescriptor<Dish>())
-            
-            var localDict = Dictionary(uniqueKeysWithValues: localDishes.map { ($0.id, $0) })
-            var updated = 0
-            var added = 0
-            var changesMade = false
-            
-            for decoded in container.dishes {
-                guard let id = decoded.id else { continue }
-                if let local = localDict[id] {
-                    local.updateFromDecoded(decoded)
-                    updated += 1
-                    changesMade = true
-                    localDict.removeValue(forKey: id)
+
+    // MARK: - Firestore async helpers
+
+    /// Получить блюда пользователя из Firestore (async)
+    func fetchDishesFromFirestoreAsync(userId: String) async throws -> [DishDECOD] {
+        try await withCheckedThrowingContinuation { continuation in
+            db.collection("dishes").whereField("userId", isEqualTo: userId).getDocuments { snapshot, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
                 } else {
-                    context.insert(Dish(from: decoded))
-                    added += 1
-                    changesMade = true
+                    let dishes: [DishDECOD] = snapshot?.documents.compactMap { doc in
+                        try? doc.data(as: DishDECOD.self)
+                    } ?? []
+                    continuation.resume(returning: Self.removeDuplicates(dishes))
                 }
             }
-            
-            for (_, dish) in localDict {
-                context.delete(dish)
-                changesMade = true
-            }
-            
-            try context.save()
-            
-            if changesMade {
-                NotificationCenterService.shared.showSuccess("📥 Импортировано: ➕ \(added), 🔄 \(updated)")
-            } else {
-                NotificationCenterService.shared.showInfo("⏩ Нет изменений при импорте из Google Drive")
-            }
-            
-        } catch {
-            print("❌ Ошибка импорта из Google Drive: \(error)")
-            NotificationCenterService.shared.showError("Ошибка импорта", resolution: error.localizedDescription)
-        }
-    }
-    
-    // MARK: - Экспорт в Google Drive
-    func exportToGoogleDrive(context: ModelContext) async {
-        do {
-            let dishes = try context.fetch(FetchDescriptor<Dish>())
-            let decoded = dishes.map { DishDECOD(id: $0.id, name: $0.name, about: $0.about, imageBase64: $0.imageBase64, category: $0.category ?? .lunch) }
-            let container = DishesContainer(dishes: decoded)
-            let data = try JSONEncoder().encode(container)
-            try await GoogleDriveService.shared.uploadDishesJSON(data)
-            print("📤 Экспортировано блюд в Google Drive: \(dishes.count)")
-        } catch {
-            print("❌ Ошибка экспорта в Google Drive: \(error)")
-            NotificationCenterService.shared.showError("Ошибка экспорта", resolution: error.localizedDescription)
-        }
-    }
-    
-    // MARK: - Проверка доступности локальной сети
-    func isLocalNetworkReachable() async -> Bool {
-        let monitor = NWPathMonitor()
-        let queue = DispatchQueue(label: "LocalNetworkMonitor")
-        
-        return await withCheckedContinuation { continuation in
-            monitor.pathUpdateHandler = { path in
-                monitor.cancel()
-                continuation.resume(returning: path.status == .satisfied)
-            }
-            monitor.start(queue: queue)
         }
     }
 
-    // MARK: - Проверка наличия учетных данных
-    func areCredentialsPresent() -> Bool {
-        // Здесь может быть логика проверки Keychain или других данных
-        return false
-    }
+    /// Экспорт только локальных блюд, которых нет в Firestore (или которые отличаются) (async)
+    func exportLocalChangesToFirestoreAsync(userId: String, context: ModelContext) async throws {
+        let localDishes = try context.fetch(FetchDescriptor<Dish>())
 
-    // MARK: - Синхронизация данных (импорт + экспорт)
-    func syncDishes(context: ModelContext) async {
-        await importFromGoogleDrive(context: context)
-        await exportToGoogleDrive(context: context)
-    }
-    
-    private func startNetworkMonitor() {
-        let monitor = NWPathMonitor()
-        monitor.pathUpdateHandler = { [weak self] path in
-            if path.status == .satisfied {
-                print("✅ Сеть доступна")
-                if let context = self?.latestContext {
-                    Task {
-                        print("🌐 Синхронизация при появлении сети...")
-                        await self?.importFromGoogleDrive(context: context)
-                    }
+        // Получаем id блюд в Firestore
+        let remote: [DishDECOD] = try await withCheckedThrowingContinuation { continuation in
+            db.collection("dishes").whereField("userId", isEqualTo: userId).getDocuments { snapshot, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    let arr: [DishDECOD] = snapshot?.documents.compactMap { try? $0.data(as: DishDECOD.self) } ?? []
+                    continuation.resume(returning: arr)
                 }
-            } else {
-                print("🚫 Сеть недоступна")
             }
         }
-        let queue = DispatchQueue(label: "NetworkMonitor")
-        monitor.start(queue: queue)
+        let remoteIds = Set(remote.compactMap { $0.id })
+        var exported = 0
+
+        // Экспортируем блюда, которых нет в Firestore
+        for dish in localDishes {
+            if !remoteIds.contains(dish.id) {
+                let docId = dish.id.uuidString
+                try await setDishInFirestoreAsync(dish: dish, userId: userId, docId: docId)
+                exported += 1
+            }
+        }
+        print("✅ Экспортировано новых блюд в Firestore: \(exported)")
+    }
+
+    /// Асинхронная запись одного блюда в Firestore
+    private func setDishInFirestoreAsync(dish: Dish, userId: String, docId: String) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            db.collection("dishes").document(docId).setData([
+                "id": docId,
+                "name": dish.name,
+                "about": dish.about,
+                "imageBase64": dish.imageBase64 ?? "",
+                "category": dish.category?.rawValue ?? "",
+                "userId": userId
+            ], merge: true) { error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
+    /// Добавить или обновить блюдо и в Firestore, и локально (SwiftData)
+    func addOrUpdateDish(_ decoded: DishDECOD, context: ModelContext) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw NSError(domain: "", code: 401, userInfo: [NSLocalizedDescriptionKey: "Нет авторизации"])
+        }
+        let docId = decoded.id?.uuidString ?? UUID().uuidString
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            db.collection("dishes").document(docId).setData([
+                "id": docId,
+                "name": decoded.name ?? "",
+                "about": decoded.about ?? "",
+                "imageBase64": decoded.imageBase64 ?? "",
+                "category": decoded.category?.rawValue ?? "",
+                "userId": userId
+            ], merge: true) { error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+        // Сохраняем локально (обновляем или добавляем)
+        if let id = decoded.id,
+           let localDish = try? context.fetch(FetchDescriptor<Dish>(predicate: #Predicate { $0.id == id })).first {
+            localDish.updateFromDecoded(decoded)
+        } else {
+            context.insert(Dish(from: decoded))
+        }
+        try? context.save()
+    }
+
+    func deleteDishFromFirestore(_ dish: Dish) async throws {
+        guard let _ = Auth.auth().currentUser?.uid else { return }
+        let dishId = dish.id.uuidString
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            db.collection("dishes").document(dishId).delete { error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
+    // Быстрое удаление дублей по id
+    static func removeDuplicates(_ dishes: [DishDECOD]) -> [DishDECOD] {
+        var seen = Set<UUID>()
+        var unique: [DishDECOD] = []
+        for d in dishes {
+            if let id = d.id, seen.insert(id).inserted {
+                unique.append(d)
+            }
+        }
+        return unique
     }
 }

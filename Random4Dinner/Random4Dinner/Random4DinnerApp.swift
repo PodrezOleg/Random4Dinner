@@ -28,10 +28,7 @@ struct Random4DinnerApp: App {
     init() {
         // Firebase
         FirebaseManager.shared.configure()
-        // Google Sign-In
-        GIDSignIn.sharedInstance.configuration = GIDConfiguration(
-            clientID: "336346687083-pl7ar4iqupk08hjue4mlbkfijd1b0ae9.apps.googleusercontent.com"
-        )
+        
     }
 
     var body: some Scene {
