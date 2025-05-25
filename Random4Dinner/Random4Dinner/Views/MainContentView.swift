@@ -16,6 +16,7 @@ struct MainContentView: View {
     @Binding var isShowingList: Bool
     @Binding var errorMessage: String?
 
+    // Можно прокидывать выбранную группу в AddDishView и т.д.
 
     var body: some View {
         VStack(spacing: 20) {
@@ -60,16 +61,14 @@ struct MainContentView: View {
                 .modifier(DishSheets(
                     isAddingDish: $isAddingDish,
                     isShowingList: $isShowingList
-                    
                 ))
         }
     }
 
-     struct TopToolbar: ViewModifier {
+    struct TopToolbar: ViewModifier {
         @Environment(\.modelContext) private var context
         @Binding var isAddingDish: Bool
         @Binding var isShowingList: Bool
-       
         @Binding var errorMessage: String?
 
         func body(content: Content) -> some View {
@@ -93,10 +92,9 @@ struct MainContentView: View {
         }
     }
 
-     struct DishSheets: ViewModifier {
+    struct DishSheets: ViewModifier {
         @Binding var isAddingDish: Bool
         @Binding var isShowingList: Bool
-     
 
         func body(content: Content) -> some View {
             content
@@ -106,7 +104,6 @@ struct MainContentView: View {
                 .sheet(isPresented: $isShowingList) {
                     DishListView()
                 }
-               
         }
     }
 }

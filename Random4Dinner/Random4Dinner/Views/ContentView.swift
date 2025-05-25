@@ -9,32 +9,47 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var context
-    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject var groupStore: GroupStore
     @Query private var dishes: [Dish]
+
+    @State private var errorMessage: String? = nil
+    @State private var needsLoginResolver = false
 
     @State private var selectedDish: Dish?
     @State private var isAddingDish = false
     @State private var isShowingList = false
-    @State private var errorMessage: String? = nil
-   
+
+    var isSignedIn: Bool {
+        GoogleAuthManager.shared.isSignedIn
+    }
 
     var body: some View {
-        NavigationStack {
-            MainContentView(
-                selectedDish: $selectedDish,
-                isAddingDish: $isAddingDish,
-                isShowingList: $isShowingList,
-                errorMessage: $errorMessage
-            )
+        ZStack {
+            // ⬇️ Логин-пустышка, чтобы блокировать контент, пока нет логина
+            if !isSignedIn && needsLoginResolver {
+                Color.clear
+            } else {
+                // ⬇️ Нет выбранной группы? Покажи GroupSelectionView
+                if groupStore.selectedGroup == nil {
+                    GroupSelectionView()
+                        .environmentObject(groupStore)
+                } else {
+                    NavigationStack {
+                        MainContentView(
+                            selectedDish: $selectedDish,
+                            isAddingDish: $isAddingDish,
+                            isShowingList: $isShowingList,
+                            errorMessage: $errorMessage
+                        )
+                    }
+                }
+            }
         }
-        .modifier(AppLifecycleModifier(errorMessage: $errorMessage)) 
-    }
-}
-    
-extension Dish {
-    func update(from decoded: DishDECOD) {
-        self.name = decoded.name ?? ""
-        self.about = decoded.about ?? ""
-        self.imageBase64 = decoded.imageBase64
+        .modifier(AppLifecycleModifier(errorMessage: $errorMessage))
+        .onAppear {
+            if !isSignedIn {
+                needsLoginResolver = true
+            }
+        }
     }
 }

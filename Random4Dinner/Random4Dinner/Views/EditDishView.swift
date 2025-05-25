@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PhotosUI
+import FirebaseAuth
 
 struct EditDishView: View {
     @Environment(\.modelContext) private var context
@@ -15,13 +16,16 @@ struct EditDishView: View {
     @Bindable var dish: Dish
     @State private var selectedImage: PhotosPickerItem?
     @State private var imageData: Data?
-    
+
+    private var userId: String? { Auth.auth().currentUser?.uid }
+    private var groupId: String? { dish.groupId }
+
     var body: some View {
         Form {
             Section(header: Text("Название")) {
                 TextField("Введите название", text: $dish.name)
             }
-            
+
             Section(header: Text("Описание")) {
                 TextEditor(text: $dish.about)
                     .frame(height: 150)
@@ -79,12 +83,15 @@ struct EditDishView: View {
                     Task { @MainActor in
                         do {
                             try context.save()
+                            guard let userId = userId else { return }
                             let decoded = DishDECOD(
                                 id: dish.id,
                                 name: dish.name,
                                 about: dish.about,
                                 imageBase64: dish.imageBase64,
-                                category: dish.category ?? .lunch
+                                category: dish.category ?? .lunch,
+                                userId: userId,
+                                groupId: groupId
                             )
                             try await DishSyncService.shared.addOrUpdateDish(decoded, context: context)
                         } catch {
@@ -105,4 +112,3 @@ struct EditDishView: View {
         }
     }
 }
-

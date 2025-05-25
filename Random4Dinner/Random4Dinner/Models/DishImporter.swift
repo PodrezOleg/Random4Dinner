@@ -13,7 +13,9 @@ func importDish(from decod: DishDECOD, context: ModelContext) {
         name: decod.name ?? "",
         about: decod.about ?? "",
         imageBase64: decod.imageBase64 ?? "",
-        category: decod.category
+        category: decod.category,
+        userId: decod.userId,
+        groupId: decod.groupId
     )
     context.insert(dish)
 }

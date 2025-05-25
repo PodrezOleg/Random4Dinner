@@ -7,45 +7,57 @@
 
 import SwiftUI
 import SwiftData
-
+import FirebaseAuth
 
 struct DishListView: View {
+    @EnvironmentObject var groupStore: GroupStore
     @Environment(\.modelContext) private var context
     @Query private var allDishes: [Dish]
-    
+
+    private var userId: String? { Auth.auth().currentUser?.uid }
+    private var groupId: String? { groupStore.selectedGroup?.id }
+
     private var uniqueDishes: [Dish] {
         var seen = Set<UUID>()
         return allDishes.filter { dish in
-            if seen.contains(dish.id) {
-                return false
-            } else {
-                seen.insert(dish.id)
-                return true
-            }
+            let isMine = dish.userId == userId && dish.groupId == nil
+            let isGroup = groupId != nil && dish.groupId == groupId
+            return (isMine || isGroup) && seen.insert(dish.id).inserted
         }
     }
-    
+
     var body: some View {
         NavigationView {
-            List {
-                ForEach(uniqueDishes) { dish in
-                    DishRowView(dish: dish)
+            VStack(alignment: .leading) {
+                if let group = groupStore.selectedGroup {
+                    Text("Группа: \(group.name)")
+                        .font(.headline)
+                        .padding(.leading)
+                } else {
+                    Text("Личные блюда")
+                        .font(.headline)
+                        .padding(.leading)
                 }
-                .onDelete { indexSet in
-                    for index in indexSet {
-                        let dish = uniqueDishes[index]
-                        context.delete(dish)
-                        Task {
-                            try? await DishSyncService.shared.deleteDishFromFirestore(dish)
-                        }
+                List {
+                    ForEach(uniqueDishes) { dish in
+                        DishRowView(dish: dish)
                     }
-                    do {
-                        try context.save()
-                        Task {
-                            try? await DishSyncService.shared.syncDishes(context: context)
+                    .onDelete { indexSet in
+                        for index in indexSet {
+                            let dish = uniqueDishes[index]
+                            context.delete(dish)
+                            Task {
+                                try? await DishSyncService.shared.deleteDishFromFirestore(dish)
+                            }
                         }
-                    } catch {
-                        print("❌ Ошибка при удалении блюда: \(error)")
+                        do {
+                            try context.save()
+                            Task {
+                                try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
+                            }
+                        } catch {
+                            print("❌ Ошибка при удалении блюда: \(error)")
+                        }
                     }
                 }
             }
@@ -59,20 +71,17 @@ struct DishListView: View {
             }
         }
         .task {
-            try? await DishSyncService.shared.syncDishes(context: context)
+            try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
         }
         .onDisappear {
             Task {
-                try? await DishSyncService.shared.syncDishes(context: context)
+                try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
             }
         }
     }
-    
-    
-    // Вынесем строку блюда в отдельный `View`
+
     struct DishRowView: View {
         let dish: Dish
-        
         var body: some View {
             NavigationLink(destination: DishDetailView(dish: dish)) {
                 HStack {
@@ -88,11 +97,9 @@ struct DishListView: View {
             }
         }
     }
-    
-    // Вынесем обработку изображения в отдельный `View`
+
     struct DishImageView: View {
         let imageData: Data?
-        
         var body: some View {
             if let imageData, let uiImage = UIImage(data: imageData) {
                 Image(uiImage: uiImage)

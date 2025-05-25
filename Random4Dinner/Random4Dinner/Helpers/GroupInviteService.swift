@@ -1,21 +1,36 @@
 //
-//  GroupInviteService.swift .swift
+//  GroupInviteService.swift
 //  Random4Dinner
 //
-//  Created by Oleg Podrez on 24.05.25.
+//  Created by Oleg Podrez on 25.05.25.
 //
 
 import Foundation
+import FirebaseAuth
 import FirebaseFirestore
-
 
 final class GroupInviteService {
     static let shared = GroupInviteService()
     private let db = Firestore.firestore()
-    
+
     private init() {}
-    
-    // Отправить приглашение
+
+    // --- Проверка, отправлено ли уже приглашение этому email в эту группу ---
+    func checkPendingInvite(groupId: String, inviteeEmail: String, completion: @escaping (Bool) -> Void) {
+        db.collection("invites")
+            .whereField("groupId", isEqualTo: groupId)
+            .whereField("inviteeEmail", isEqualTo: inviteeEmail)
+            .whereField("status", isEqualTo: "pending")
+            .getDocuments { snapshot, error in
+                if let docs = snapshot?.documents, !docs.isEmpty {
+                    completion(true) // уже есть такое приглашение
+                } else {
+                    completion(false)
+                }
+            }
+    }
+
+    // --- Отправка приглашения ---
     func sendInvite(groupId: String,
                     inviterId: String,
                     inviteeEmail: String,
@@ -30,15 +45,18 @@ final class GroupInviteService {
         )
         do {
             try db.collection("invites").document(invite.id).setData(from: invite) { error in
-                if let error = error { completion(.failure(error)) }
-                else { completion(.success(())) }
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
             }
         } catch {
             completion(.failure(error))
         }
     }
-    
-    // Принять приглашение
+
+    // --- Принять приглашение ---
     func acceptInvite(inviteId: String?,
                       userId: String,
                       displayName: String,
@@ -62,8 +80,11 @@ final class GroupInviteService {
                     }
                     // Обновить статус приглашения
                     inviteRef.updateData(["status": "accepted"]) { err in
-                        if let err = err { completion(.failure(err)) }
-                        else { completion(.success(())) }
+                        if let err = err {
+                            completion(.failure(err))
+                        } else {
+                            completion(.success(()))
+                        }
                     }
                 }
             } else {
@@ -72,24 +93,14 @@ final class GroupInviteService {
         }
     }
 
-    // Отклонить приглашение
+    // --- Отклонить приглашение ---
     func declineInvite(inviteId: String, completion: @escaping (Result<Void, Error>) -> Void) {
         db.collection("invites").document(inviteId).updateData(["status": "declined"]) { error in
-            if let error = error { completion(.failure(error)) }
-            else { completion(.success(())) }
-        }
-    }
-    func getDishesForUser(userId: String, completion: @escaping (Result<[DishDECOD], Error>) -> Void) {
-            db.collection("dishes").whereField("userId", isEqualTo: userId).getDocuments { snapshot, error in
-                if let error = error {
-                    completion(.failure(error))
-                } else {
-                    let dishes: [DishDECOD] = snapshot?.documents.compactMap { doc in
-                        try? doc.data(as: DishDECOD.self)
-                    } ?? []
-                    completion(.success(dishes))
-                }
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                completion(.success(()))
             }
         }
     }
-
+}

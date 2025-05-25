@@ -5,14 +5,17 @@
 //  Created by Oleg Podrez on 11.03.25.
 //
 
+
 import SwiftUI
 import SwiftData
 import GoogleSignIn
-import FirebaseCore
 
 @main
 struct Random4DinnerApp: App {
-    // Настройка SwiftData на уровне структуры
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate    // <-- Важно!
+
+    @StateObject var groupStore = GroupStore()
+    // Настройка SwiftData
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Dish.self,
@@ -25,17 +28,12 @@ struct Random4DinnerApp: App {
         }
     }()
 
-    init() {
-        // Firebase
-        FirebaseManager.shared.configure()
-        
-    }
-
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .overlay(NotificationBannerView())
                 .environment(\.modelContext, sharedModelContainer.mainContext)
+                .environmentObject(groupStore)
                 .onOpenURL { url in
                     GIDSignIn.sharedInstance.handle(url)
                 }

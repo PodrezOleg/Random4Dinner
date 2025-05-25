@@ -5,22 +5,24 @@
 //  Created by Oleg Podrez on 13.05.25.
 //
 
+//
+//  AppDelegate.swift
+//  Random4Dinner
+//
+//  Created by Oleg Podrez on 13.05.25.
+//
+
 import UIKit
 import GoogleSignIn
+import FirebaseCore
 import FirebaseAuth
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        // Восстановить пользователя из Firebase (если есть)
-        if let firebaseUser = Auth.auth().currentUser {
-            GoogleAuthManager.shared.user = firebaseUser
-            print("🔁 Восстановили предыдущий Firebase вход: \(firebaseUser.email ?? firebaseUser.uid)")
-        } else {
-            print("⚠️ Нет сохранённой Firebase-сессии")
-        }
+        FirebaseApp.configure()
         return true
     }
 
