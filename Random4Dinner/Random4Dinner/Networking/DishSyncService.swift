@@ -21,43 +21,40 @@ final class DishSyncService {
             throw NSError(domain: "", code: 401, userInfo: [NSLocalizedDescriptionKey: "Нет авторизации"])
         }
 
-        // 1. Импортируем блюда пользователя и групп, где он состоит
         let remoteDishes = try await fetchAllAvailableDishes(userId: userId, groupIds: userGroups)
-        // --- Вот тут фильтруем дубликаты ---
         let uniqueRemoteDishes = Self.removeDuplicates(remoteDishes)
 
-        // 2. Обновляем локальную базу
-        let localDishes = try context.fetch(FetchDescriptor<Dish>())
-        let localDict = Dictionary(uniqueKeysWithValues: localDishes.map { ($0.id, $0) })
-        let remoteDict = Dictionary(uniqueKeysWithValues: uniqueRemoteDishes.compactMap { dish in dish.id.map { ($0, dish) } })
+        // ВСЕ операции с context на MainActor!
+        try await MainActor.run {
+            let localDishes = try context.fetch(FetchDescriptor<Dish>())
+            let localDict = Dictionary(uniqueKeysWithValues: localDishes.map { ($0.id, $0) })
+            let remoteDict = Dictionary(uniqueKeysWithValues: uniqueRemoteDishes.compactMap { dish in dish.id.map { ($0, dish) } })
 
-        for (id, remoteDish) in remoteDict {
-            if let local = localDict[id] {
-                local.updateFromDecoded(remoteDish)
-            } else {
-                context.insert(Dish(from: remoteDish))
+            for (id, remoteDish) in remoteDict {
+                if let local = localDict[id] {
+                    local.updateFromDecoded(remoteDish)
+                } else {
+                    context.insert(Dish(from: remoteDish))
+                }
             }
+            try context.save()
         }
-        try context.save()
 
-        // 3. Экспортируем новые/изменённые блюда (только личные и групповые пользователя)
+        // Экспорт новых/изменённых блюд (можно делать без MainActor, Firestore — не UI)
         try await exportLocalChangesToFirestoreAsync(userId: userId, groupIds: userGroups, context: context)
     }
 
-    /// Импорт блюд пользователя и групп
     func fetchAllAvailableDishes(userId: String, groupIds: [String]) async throws -> [DishDECOD] {
+        // (как было, тут context не нужен)
         return try await withCheckedThrowingContinuation { continuation in
             var queries: [Query] = []
-            // Личные блюда пользователя
             queries.append(db.collection("dishes").whereField("userId", isEqualTo: userId))
-            // Групповые блюда
             for groupId in groupIds {
                 queries.append(db.collection("dishes").whereField("groupId", isEqualTo: groupId))
             }
 
             var allDishes: [DishDECOD] = []
             let group = DispatchGroup()
-
             for query in queries {
                 group.enter()
                 query.getDocuments { snapshot, error in
@@ -67,17 +64,18 @@ final class DishSyncService {
                     }
                 }
             }
-
             group.notify(queue: .main) {
                 continuation.resume(returning: Self.removeDuplicates(allDishes))
             }
         }
     }
 
-    /// Экспорт только тех блюд, которыми владеет пользователь (userId) или его группа
     func exportLocalChangesToFirestoreAsync(userId: String, groupIds: [String], context: ModelContext) async throws {
-        let localDishes = try context.fetch(FetchDescriptor<Dish>())
-        // Получаем id всех блюд пользователя и его групп из Firestore
+        let localDishes: [Dish]
+        // только чтение: fetch с MainActor!
+        localDishes = try await MainActor.run {
+            try context.fetch(FetchDescriptor<Dish>())
+        }
         let remote: [DishDECOD] = try await fetchAllAvailableDishes(userId: userId, groupIds: groupIds)
         let remoteIds = Set(remote.compactMap { $0.id })
         var exported = 0
@@ -93,7 +91,7 @@ final class DishSyncService {
         print("✅ Экспортировано новых блюд в Firestore: \(exported)")
     }
 
-    /// Асинхронная запись одного блюда в Firestore
+    // Firestore — без MainActor
     private func setDishInFirestoreAsync(dish: Dish, docId: String) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             db.collection("dishes").document(docId).setData([
@@ -114,33 +112,21 @@ final class DishSyncService {
         }
     }
 
+  
     func addOrUpdateDish(_ decoded: DishDECOD, context: ModelContext) async throws {
-        let docId = decoded.id?.uuidString ?? UUID().uuidString
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            db.collection("dishes").document(docId).setData([
-                "id": docId,
-                "name": decoded.name ?? "",
-                "about": decoded.about ?? "",
-                "imageBase64": decoded.imageBase64 ?? "",
-                "category": decoded.category?.rawValue ?? "",
-                "userId": decoded.userId ?? Auth.auth().currentUser?.uid ?? "",
-                "groupId": decoded.groupId ?? ""
-            ], merge: true) { error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
+        // 1. Все операции с context — на MainActor
+        try await MainActor.run {
+            if let id = decoded.id,
+               let localDish = try? context.fetch(FetchDescriptor<Dish>(predicate: #Predicate { $0.id == id })).first {
+                localDish.updateFromDecoded(decoded)
+            } else {
+                context.insert(Dish(from: decoded))
             }
+            try? context.save()
         }
-        // Сохраняем локально
-        if let id = decoded.id,
-           let localDish = try? context.fetch(FetchDescriptor<Dish>(predicate: #Predicate { $0.id == id })).first {
-            localDish.updateFromDecoded(decoded)
-        } else {
-            context.insert(Dish(from: decoded))
-        }
-        try? context.save()
+        // 2. Firestore upload отдельно (можно не на MainActor)
+        let docId = decoded.id?.uuidString ?? UUID().uuidString
+        try await setDishInFirestoreAsync(dish: Dish(from: decoded), docId: docId)
     }
 
     func deleteDishFromFirestore(_ dish: Dish) async throws {

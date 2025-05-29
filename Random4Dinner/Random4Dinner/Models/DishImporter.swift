@@ -9,15 +9,17 @@ import SwiftData
 import SwiftUI
 
 func importDish(from decod: DishDECOD, context: ModelContext) {
-    let dish = Dish(
-        name: decod.name ?? "",
-        about: decod.about ?? "",
-        imageBase64: decod.imageBase64 ?? "",
-        category: decod.category,
-        userId: decod.userId,
-        groupId: decod.groupId
-    )
-    context.insert(dish)
+    Task { @MainActor in
+        let dish = Dish(
+            name: decod.name ?? "",
+            about: decod.about ?? "",
+            imageBase64: decod.imageBase64 ?? "",
+            category: decod.category,
+            userId: decod.userId,
+            groupId: decod.groupId
+        )
+        context.insert(dish)
+    }
 }
 
 

@@ -13,22 +13,22 @@ struct AddDishView: View {
     @EnvironmentObject var groupStore: GroupStore
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-
+    
     private var groupId: String? { groupStore.selectedGroup?.id }
     private var userId: String? { Auth.auth().currentUser?.uid }
-
+    
     @State private var name = ""
     @State private var about = ""
     @State private var selectedImage: PhotosPickerItem?
     @State private var imageData: Data?
     @State private var selectedCategory: MealCategory = .lunch
-
+    
     private var formContent: some View {
         Form {
             Section(header: Text("Название")) {
                 TextField("Введите название", text: $name)
             }
-
+            
             Section(header: Text("Описание")) {
                 TextEditor(text: $about)
                     .frame(height: 150)
@@ -38,7 +38,7 @@ struct AddDishView: View {
                             .stroke(Color.gray.opacity(0.5), lineWidth: 1)
                     )
             }
-
+            
             Section(header: Text("Категория")) {
                 Picker("Категория", selection: $selectedCategory) {
                     ForEach(MealCategory.allCases) { category in
@@ -47,12 +47,12 @@ struct AddDishView: View {
                 }
                 .pickerStyle(SegmentedPickerStyle())
             }
-
+            
             Section(header: Text("Фото")) {
                 PhotosPicker(selection: $selectedImage, matching: .images) {
                     Text("Выбрать фото")
                 }
-
+                
                 if let data = imageData, let uiImage = UIImage(data: data) {
                     Image(uiImage: uiImage)
                         .resizable()
@@ -63,7 +63,7 @@ struct AddDishView: View {
             }
         }
     }
-
+    
     var body: some View {
         NavigationView {
             formContent
@@ -81,7 +81,7 @@ struct AddDishView: View {
                 }
         }
     }
-
+    
     private var saveButton: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Button("Сохранить") {
@@ -93,13 +93,26 @@ struct AddDishView: View {
                     imageBase64: imageData?.base64EncodedString(),
                     category: selectedCategory,
                     userId: userId,
-                    groupId: groupId // теперь всегда актуальная группа!
+                    groupId: groupId
                 )
                 Task {
                     do {
+                        // 1. Сохрани локально и сразу закрой экран (MainActor)
+                        await MainActor.run {
+                            let dish = Dish(from: newDishDecoded)
+                            context.insert(dish)
+                            try? context.save()
+                            dismiss() // Экран закрываем сразу!
+                        }
+                        // 2. Пробуй синхронизировать с Firestore (можно не ждать)
                         try await DishSyncService.shared.addOrUpdateDish(newDishDecoded, context: context)
-                        dismiss()
                     } catch {
+                        await MainActor.run {
+                            NotificationCenterService.shared.showError(
+                                "Ошибка синхронизации с облаком",
+                                resolution: "Проверьте интернет — данные локально сохранены"
+                            )
+                        }
                         print("Ошибка сохранения блюда: \(error)")
                     }
                 }
@@ -107,12 +120,12 @@ struct AddDishView: View {
             .disabled(name.isEmpty || about.isEmpty)
         }
     }
-
+    
     private var cancelButton: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Button("Отмена") {
-                dismiss()
-            }
-        }
-    }
-}
+         ToolbarItem(placement: .topBarLeading) {
+             Button("Отмена") {
+                 dismiss()
+             }
+         }
+     }
+ }

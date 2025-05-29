@@ -15,16 +15,24 @@ struct MainContentView: View {
     @Binding var isAddingDish: Bool
     @Binding var isShowingList: Bool
     @Binding var errorMessage: String?
+    @State private var isShowingSettings: Bool = false
 
     // Можно прокидывать выбранную группу в AddDishView и т.д.
 
     var body: some View {
         VStack(spacing: 20) {
             DishSelectionButton
+            Spacer()
+            CustomTabBar(
+                isAddingDish: $isAddingDish,
+                isShowingList: $isShowingList,
+                isShowingSettings: $isShowingSettings
+            )
         }
         .modifier(CombinedModifiers(
             isAddingDish: $isAddingDish,
             isShowingList: $isShowingList,
+            isShowingSettings: $isShowingSettings,
             errorMessage: $errorMessage
         ))
     }
@@ -49,52 +57,23 @@ struct MainContentView: View {
     struct CombinedModifiers: ViewModifier {
         @Binding var isAddingDish: Bool
         @Binding var isShowingList: Bool
+        @Binding var isShowingSettings: Bool
         @Binding var errorMessage: String?
 
         func body(content: Content) -> some View {
             content
-                .modifier(TopToolbar(
-                    isAddingDish: $isAddingDish,
-                    isShowingList: $isShowingList,
-                    errorMessage: $errorMessage
-                ))
                 .modifier(DishSheets(
                     isAddingDish: $isAddingDish,
-                    isShowingList: $isShowingList
+                    isShowingList: $isShowingList,
+                    isShowingSettings: $isShowingSettings
                 ))
-        }
-    }
-
-    struct TopToolbar: ViewModifier {
-        @Environment(\.modelContext) private var context
-        @Binding var isAddingDish: Bool
-        @Binding var isShowingList: Bool
-        @Binding var errorMessage: String?
-
-        func body(content: Content) -> some View {
-            content
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            isAddingDish = true
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                    }
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            isShowingList = true
-                        } label: {
-                            Image(systemName: "fork.knife")
-                        }
-                    }
-                }
         }
     }
 
     struct DishSheets: ViewModifier {
         @Binding var isAddingDish: Bool
         @Binding var isShowingList: Bool
+        @Binding var isShowingSettings: Bool
 
         func body(content: Content) -> some View {
             content
@@ -104,6 +83,56 @@ struct MainContentView: View {
                 .sheet(isPresented: $isShowingList) {
                     DishListView()
                 }
+                .sheet(isPresented: $isShowingSettings) {
+                    // Placeholder settings view
+                    VStack {
+                        Text("Settings")
+                            .font(.largeTitle)
+                            .padding()
+                        Button("Dismiss") {
+                            isShowingSettings = false
+                        }
+                        .padding()
+                    }
+                }
+        }
+    }
+
+    struct CustomTabBar: View {
+        @Binding var isAddingDish: Bool
+        @Binding var isShowingList: Bool
+        @Binding var isShowingSettings: Bool
+
+        var body: some View {
+            HStack {
+                Spacer()
+                Button {
+                    isShowingList = true
+                } label: {
+                    Image(systemName: "fork.knife")
+                        .font(.title)
+                        .foregroundColor(.primary)
+                }
+                Spacer()
+                Button {
+                    isAddingDish = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.title)
+                        .foregroundColor(.primary)
+                }
+                Spacer()
+                Button {
+                    isShowingSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.title)
+                        .foregroundColor(.primary)
+                }
+                Spacer()
+            }
+            .padding()
+            .background(Color(UIColor.systemGray6))
         }
     }
 }

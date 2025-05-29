@@ -80,32 +80,60 @@ struct EditDishView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Сохранить") {
-                    Task { @MainActor in
+                    Task {
+                        // 1. Сохраняем локально на MainActor и закрываем экран
+                        await MainActor.run {
+                            try? context.save()
+                            dismiss()
+                        }
+                        // 2. Пробуем синхронизировать изменения с Firestore
+                        guard let userId = userId else { return }
+                        let decoded = DishDECOD(
+                            id: dish.id,
+                            name: dish.name,
+                            about: dish.about,
+                            imageBase64: dish.imageBase64,
+                            category: dish.category ?? .lunch,
+                            userId: userId,
+                            groupId: groupId
+                        )
                         do {
-                            try context.save()
-                            guard let userId = userId else { return }
-                            let decoded = DishDECOD(
-                                id: dish.id,
-                                name: dish.name,
-                                about: dish.about,
-                                imageBase64: dish.imageBase64,
-                                category: dish.category ?? .lunch,
-                                userId: userId,
-                                groupId: groupId
-                            )
                             try await DishSyncService.shared.addOrUpdateDish(decoded, context: context)
                         } catch {
+                            await MainActor.run {
+                                NotificationCenterService.shared.showError(
+                                    "Ошибка синхронизации изменений",
+                                    resolution: "Проверьте интернет — изменения сохранены локально"
+                                )
+                            }
                             print("Ошибка при сохранении: \(error)")
                         }
-                        dismiss()
                     }
                 }
             }
 
             ToolbarItem(placement: .topBarLeading) {
                 Button("Удалить") {
-                    context.delete(dish)
-                    dismiss()
+                    Task {
+                        // 1. Удаляем локально и сразу закрываем
+                        await MainActor.run {
+                            context.delete(dish)
+                            try? context.save()
+                            dismiss()
+                        }
+                        // 2. Пробуем удалить из облака
+                        do {
+                            try await DishSyncService.shared.deleteDishFromFirestore(dish)
+                        } catch {
+                            await MainActor.run {
+                                NotificationCenterService.shared.showError(
+                                    "Ошибка удаления из облака",
+                                    resolution: "Проверьте интернет — блюдо удалено локально"
+                                )
+                            }
+                            print("Ошибка удаления блюда: \(error)")
+                        }
+                    }
                 }
                 .foregroundColor(.red)
             }

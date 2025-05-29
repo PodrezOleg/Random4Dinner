@@ -43,23 +43,29 @@ struct DishListView: View {
                         DishRowView(dish: dish)
                     }
                     .onDelete { indexSet in
-                        for index in indexSet {
-                            let dish = uniqueDishes[index]
-                            context.delete(dish)
-                            Task {
+                        let dishesToDelete = indexSet.map { uniqueDishes[$0] }
+                        Task {
+                            // 1. Удаляем из локальной базы (MainActor)
+                            await MainActor.run {
+                                for dish in dishesToDelete {
+                                    context.delete(dish)
+                                }
+                                try? context.save()
+                            }
+                            // 2. Удаляем из Firestore
+                            for dish in dishesToDelete {
                                 try? await DishSyncService.shared.deleteDishFromFirestore(dish)
                             }
-                        }
-                        do {
-                            try context.save()
-                            Task {
-                                try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
+                            // 3. Пересинхронизируем (только на MainActor!)
+                            await MainActor.run {
+                                Task {
+                                    try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
+                                }
                             }
-                        } catch {
-                            print("❌ Ошибка при удалении блюда: \(error)")
                         }
                     }
                 }
+                .listStyle(.plain)
             }
             .navigationTitle("Мои блюда")
             .toolbar {
@@ -69,53 +75,55 @@ struct DishListView: View {
                     }
                 }
             }
-        }
-        .task {
-            try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
-        }
-        .onDisappear {
-            Task {
+            .task {
                 try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
             }
-        }
-    }
-
-    struct DishRowView: View {
-        let dish: Dish
-        var body: some View {
-            NavigationLink(destination: DishDetailView(dish: dish)) {
-                HStack {
-                    DishImageView(imageData: Data(base64Encoded: dish.imageBase64 ?? ""))
-                    VStack(alignment: .leading) {
-                        Text(dish.name)
-                            .font(.headline)
-                        Text(dish.about)
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                    }
+            .onDisappear {
+                Task {
+                    try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
                 }
             }
         }
     }
+}
 
-    struct DishImageView: View {
-        let imageData: Data?
-        var body: some View {
-            if let imageData, let uiImage = UIImage(data: imageData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 50, height: 50)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-            } else {
-                Image(systemName: "photo")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 50, height: 50)
-                    .foregroundColor(.gray)
-                    .opacity(0.5)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+// MARK: - DishRowView
+struct DishRowView: View {
+    let dish: Dish
+    var body: some View {
+        NavigationLink(destination: DishDetailView(dish: dish)) {
+            HStack {
+                DishImageView(imageData: Data(base64Encoded: dish.imageBase64 ?? ""))
+                VStack(alignment: .leading) {
+                    Text(dish.name)
+                        .font(.headline)
+                    Text(dish.about)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
             }
+        }
+    }
+}
+
+// MARK: - DishImageView
+struct DishImageView: View {
+    let imageData: Data?
+    var body: some View {
+        if let imageData, let uiImage = UIImage(data: imageData) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 50, height: 50)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+        } else {
+            Image(systemName: "photo")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 50, height: 50)
+                .foregroundColor(.gray)
+                .opacity(0.5)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 }

@@ -11,18 +11,21 @@ struct ContentView: View {
     @Environment(\.modelContext) private var context
     @EnvironmentObject var groupStore: GroupStore
     @Query private var dishes: [Dish]
-
+    
     @State private var errorMessage: String? = nil
     @State private var needsLoginResolver = false
-
+    
     @State private var selectedDish: Dish?
     @State private var isAddingDish = false
     @State private var isShowingList = false
-
+    
+    @StateObject private var networkMonitor = NetworkMonitor.shared
+    
     var isSignedIn: Bool {
         GoogleAuthManager.shared.isSignedIn
     }
-
+    
+    
     var body: some View {
         ZStack {
             // ⬇️ Логин-пустышка, чтобы блокировать контент, пока нет логина
@@ -45,10 +48,16 @@ struct ContentView: View {
                 }
             }
         }
+        
         .modifier(AppLifecycleModifier(errorMessage: $errorMessage))
         .onAppear {
             if !isSignedIn {
                 needsLoginResolver = true
+            }
+        }
+        .onChange(of: networkMonitor.isConnected) { _, isConnected in
+            if !isConnected {
+                NotificationCenterService.shared.showWarning("Нет подключения к интернету")
             }
         }
     }

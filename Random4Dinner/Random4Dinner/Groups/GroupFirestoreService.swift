@@ -7,7 +7,7 @@
 
 import Foundation
 import FirebaseFirestore
-
+    
 //MARK: firebase policy nedd to be changed 
 final class GroupFirestoreService {
     static let shared = GroupFirestoreService()
