@@ -21,6 +21,7 @@ struct MainContentView: View {
 
     var body: some View {
         VStack(spacing: 20) {
+           Spacer()
             DishSelectionButton
             Spacer()
             CustomTabBar(
@@ -48,6 +49,7 @@ struct MainContentView: View {
         .background(Color.orange)
         .clipShape(Circle())
         .padding()
+        
         .font(.title2.bold())
         .navigationDestination(item: $selectedDish) { dish in
             DishDetailView(dish: dish)
@@ -74,6 +76,7 @@ struct MainContentView: View {
         @Binding var isAddingDish: Bool
         @Binding var isShowingList: Bool
         @Binding var isShowingSettings: Bool
+        @EnvironmentObject var groupStore: GroupStore
 
         func body(content: Content) -> some View {
             content
@@ -84,17 +87,10 @@ struct MainContentView: View {
                     DishListView()
                 }
                 .sheet(isPresented: $isShowingSettings) {
-                    // Placeholder settings view
-                    VStack {
-                        Text("Settings")
-                            .font(.largeTitle)
-                            .padding()
-                        Button("Dismiss") {
-                            isShowingSettings = false
-                        }
-                        .padding()
-                    }
+                    SettingsView().environmentObject(groupStore)
                 }
+                   
+            }
         }
     }
 
@@ -135,4 +131,4 @@ struct MainContentView: View {
             .background(Color(UIColor.systemGray6))
         }
     }
-}
+

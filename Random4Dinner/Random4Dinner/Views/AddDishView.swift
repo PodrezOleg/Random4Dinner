@@ -32,6 +32,7 @@ struct AddDishView: View {
             Section(header: Text("Описание")) {
                 TextEditor(text: $about)
                     .frame(height: 150)
+                    .growingTextEditor()
                     .multilineTextAlignment(.leading)
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)

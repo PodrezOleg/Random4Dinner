@@ -30,6 +30,7 @@ struct EditDishView: View {
                 TextEditor(text: $dish.about)
                     .frame(height: 150)
                     .multilineTextAlignment(.leading)
+                    .growingTextEditor()
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(Color.gray.opacity(0.5), lineWidth: 1)
