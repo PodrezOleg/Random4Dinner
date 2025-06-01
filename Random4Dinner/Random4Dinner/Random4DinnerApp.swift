@@ -5,17 +5,23 @@
 //  Created by Oleg Podrez on 11.03.25.
 //
 
+
 import SwiftUI
 import SwiftData
+import GoogleSignIn
 
 @main
 struct Random4DinnerApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate    // <-- Важно!
+
+    @StateObject var groupStore = GroupStore()
+    // Настройка SwiftData
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Dish.self, // Используем правильную модель данных
+            Dish.self,
+            Recipe.self   
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
@@ -26,7 +32,12 @@ struct Random4DinnerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(\.modelContext, sharedModelContainer.mainContext) // Передаём контейнер данных
+                .overlay(NotificationBannerView())
+                .environment(\.modelContext, sharedModelContainer.mainContext)
+                .environmentObject(groupStore)
+                .onOpenURL { url in
+                    GIDSignIn.sharedInstance.handle(url)
+                }
         }
     }
 }

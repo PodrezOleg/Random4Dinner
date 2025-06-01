@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PhotosUI
+import FirebaseAuth
 
 struct EditDishView: View {
     @Environment(\.modelContext) private var context
@@ -15,17 +16,21 @@ struct EditDishView: View {
     @Bindable var dish: Dish
     @State private var selectedImage: PhotosPickerItem?
     @State private var imageData: Data?
-    
+
+    private var userId: String? { Auth.auth().currentUser?.uid }
+    private var groupId: String? { dish.groupId }
+
     var body: some View {
         Form {
             Section(header: Text("Название")) {
                 TextField("Введите название", text: $dish.name)
             }
-            
+
             Section(header: Text("Описание")) {
                 TextEditor(text: $dish.about)
                     .frame(height: 150)
                     .multilineTextAlignment(.leading)
+                    .growingTextEditor()
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(Color.gray.opacity(0.5), lineWidth: 1)
@@ -76,18 +81,60 @@ struct EditDishView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Сохранить") {
-                    try? context.save()
                     Task {
-                        await DishSyncService.shared.exportDishesToJSON(context: context)
+                        // 1. Сохраняем локально на MainActor и закрываем экран
+                        await MainActor.run {
+                            try? context.save()
+                            dismiss()
+                        }
+                        // 2. Пробуем синхронизировать изменения с Firestore
+                        guard let userId = userId else { return }
+                        let decoded = DishDECOD(
+                            id: dish.id,
+                            name: dish.name,
+                            about: dish.about,
+                            imageBase64: dish.imageBase64,
+                            category: dish.category ?? .lunch,
+                            userId: userId,
+                            groupId: groupId
+                        )
+                        do {
+                            try await DishSyncService.shared.addOrUpdateDish(decoded, context: context)
+                        } catch {
+                            await MainActor.run {
+                                NotificationCenterService.shared.showError(
+                                    "Ошибка синхронизации изменений",
+                                    resolution: "Проверьте интернет — изменения сохранены локально"
+                                )
+                            }
+                            print("Ошибка при сохранении: \(error)")
+                        }
                     }
-                    dismiss()
                 }
             }
 
             ToolbarItem(placement: .topBarLeading) {
                 Button("Удалить") {
-                    context.delete(dish)
-                    dismiss()
+                    Task {
+                        // 1. Удаляем локально и сразу закрываем
+                        await MainActor.run {
+                            context.delete(dish)
+                            try? context.save()
+                            dismiss()
+                        }
+                        // 2. Пробуем удалить из облака
+                        do {
+                            try await DishSyncService.shared.deleteDishFromFirestore(dish)
+                        } catch {
+                            await MainActor.run {
+                                NotificationCenterService.shared.showError(
+                                    "Ошибка удаления из облака",
+                                    resolution: "Проверьте интернет — блюдо удалено локально"
+                                )
+                            }
+                            print("Ошибка удаления блюда: \(error)")
+                        }
+                    }
                 }
                 .foregroundColor(.red)
             }

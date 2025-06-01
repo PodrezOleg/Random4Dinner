@@ -1,0 +1,39 @@
+# macOS
+.DS_Store
+
+# Xcode
+*.xcworkspace
+*.xcuserstate
+*.xcuserdata/
+DerivedData/
+build/
+
+# Swift Package Manager
+.build/
+Packages/
+.swiftpm/
+
+# SwiftUI Preview files
+*Preview Content*
+*Preview Assets*
+
+# Secrets
+.env
+Secrets.swift
+
+# Keychain helpers
+KeychainHelper.swift
+
+# Editor files
+*.swp
+*.lock
+Random4Dinner/GoogleService-Info.plist
+
+# Ignore Xcode project files
+*.xcuserdata
+*.xcuserstate
+*.xcscmblueprint
+
+# Plist configs
+GoogleService-Info.plist
+Info.plist
