@@ -21,8 +21,6 @@ struct EditRecipeView: View {
     @State private var servings: Int = 12
     @State private var ingredients: [Ingredient] = []
     @State private var recalculatedServings: Int = 12
-
-    // <--- Новое состояние для DisclosureGroup
     @State private var showIngredients = false
 
     init(recipe: Recipe? = nil) {
@@ -54,7 +52,6 @@ struct EditRecipeView: View {
                 Section(header: Text("Описание")) {
                     TextEditor(text: $description)
                         .frame(minHeight: 100)
-                        .growingTextEditor()
                 }
                 Section(header: Text("Ссылка (YouTube, блог и т.д.)")) {
                     TextField("https://...", text: $url)
@@ -66,32 +63,26 @@ struct EditRecipeView: View {
                         Text("\(servings) порций")
                     }
                 }
-                // --- INGREDIENTS AS DISCLOSURE GROUP ---
                 Section {
                     DisclosureGroup(isExpanded: $showIngredients) {
                         ForEach($ingredients) { $ingredient in
                             HStack(spacing: 8) {
                                 TextField("Название", text: $ingredient.name)
                                     .frame(minWidth: 100, maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 6)
                                 HStack(spacing: 0) {
                                     TextField("Кол-во", value: $ingredient.amount, formatter: NumberFormatter())
                                         .keyboardType(.decimalPad)
                                         .frame(width: 55, alignment: .trailing)
-                                        .padding(.vertical, 6)
                                     Picker("", selection: $ingredient.unit) {
                                         ForEach(units, id: \.self) { unit in
                                             Text(unit).tag(unit)
-                                                .minimumScaleFactor(0.5)
                                         }
                                     }
                                     .frame(width: 48, alignment: .leading)
                                     .pickerStyle(MenuPickerStyle())
                                     .labelsHidden()
-                                    .padding(.vertical, 6)
                                 }
                             }
-                            .padding(.vertical, 2)
                         }
                         .onDelete { offsets in
                             ingredients.remove(atOffsets: offsets)
@@ -99,13 +90,11 @@ struct EditRecipeView: View {
                         Button("Добавить ингредиент") {
                             ingredients.append(Ingredient(name: "", amount: 0, unit: "г"))
                         }
-                        .padding(.top, 4)
                     } label: {
                         Label("Ингредиенты", systemImage: "cart")
                             .font(.headline)
                     }
                 }
-                // --- Preview ---
                 Section(header: Text("Рассчитать пропорции")) {
                     Stepper(value: $recalculatedServings, in: 1...100) {
                         Text("\(recalculatedServings) порций (предпросмотр)")

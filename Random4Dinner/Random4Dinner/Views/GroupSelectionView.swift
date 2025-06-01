@@ -11,6 +11,7 @@ import FirebaseAuth
 struct GroupSelectionView: View {
     @EnvironmentObject var groupStore: GroupStore
     @Environment(\.dismiss) private var dismiss
+   
 
     @State private var showCreateSheet = false
     @State private var inviteCode = ""
@@ -206,6 +207,7 @@ struct InviteUserSheet: View {
     @Binding var inviteSuccess: Bool
 
     @State private var email = ""
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationView {
@@ -231,7 +233,9 @@ struct InviteUserSheet: View {
             .padding()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Закрыть") { email = "" }
+                    Button("Закрыть") {
+                        dismiss() // ← Закрывает окно
+                    }
                 }
             }
         }

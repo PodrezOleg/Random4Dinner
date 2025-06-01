@@ -15,8 +15,8 @@ struct DishDECOD: Codable, Identifiable {
     let about: String?
     let imageBase64: String?
     let category: MealCategory?
-    let userId: String?
-    let groupId: String?
+    var userId: String?
+    var groupId: String?
     
     struct DishesContainer: Codable {
         let dishes: [DishDECOD]

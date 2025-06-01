@@ -14,8 +14,7 @@ struct MyRecipesView: View {
     @State private var searchText = ""
     @State private var showAddRecipe = false
     @State private var selectedRecipe: Recipe?
-    
-    // Фильтрация
+
     private var filteredRecipes: [Recipe] {
         if searchText.isEmpty {
             return recipes
@@ -26,15 +25,28 @@ struct MyRecipesView: View {
             }
         }
     }
-    
+
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 ForEach(filteredRecipes) { recipe in
-                    RecipeRowView(recipe: recipe)
-                        .onTapGesture {
-                            selectedRecipe = recipe
+                    Button {
+                        selectedRecipe = recipe
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(recipe.title)
+                                    .font(.headline)
+                                Text(recipe.category.rawValue)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.gray)
                         }
+                        .padding(.vertical, 6)
+                    }
                 }
                 .onDelete(perform: deleteRecipes)
             }
@@ -50,14 +62,33 @@ struct MyRecipesView: View {
                 }
             }
             .sheet(item: $selectedRecipe) { recipe in
-                EditRecipeView(recipe: recipe)
+                RecipeDetailView(recipe: recipe)
             }
             .sheet(isPresented: $showAddRecipe) {
                 EditRecipeView()
             }
         }
+        .onAppear {
+            if recipes.isEmpty {
+                // Пример добавления тестовых рецептов
+                let testIngredients = [
+                    Ingredient(name: "Яйцо", amount: 2, unit: "шт"),
+                    Ingredient(name: "Мука", amount: 150, unit: "г"),
+                    Ingredient(name: "Сахар", amount: 100, unit: "г")
+                ]
+                let testRecipe = Recipe(
+                    title: "Блины",
+                    description: "Смешать все ингредиенты и жарить на сковороде.",
+                    category: .pie,
+                    ingredients: testIngredients,
+                    servings: 4
+                )
+                context.insert(testRecipe)
+                try? context.save()
+            }
+        }
     }
-    
+
     private func deleteRecipes(at offsets: IndexSet) {
         for index in offsets {
             let recipe = filteredRecipes[index]
@@ -67,25 +98,6 @@ struct MyRecipesView: View {
     }
 }
 
-struct RecipeRowView: View {
-    let recipe: Recipe
-    
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(recipe.title)
-                    .font(.headline)
-                Text(recipe.category.rawValue)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-            if let url = recipe.url, !url.isEmpty {
-                Link(destination: URL(string: url)!) {
-                    Image(systemName: "link")
-                        .foregroundColor(.blue)
-                }
-            }
-        }
-    }
+#Preview {
+    MyRecipesView()
 }

@@ -14,36 +14,28 @@ enum RecipeCategory: String, CaseIterable, Identifiable, Codable {
     case meat = "Мясо"
     case bread = "Хлеб"
     case drink = "Напитки"
-    case soup = "Cуп"
+    case soup = "Суп"
     case other = "Другое"
     var id: String { rawValue }
 }
 
 struct Ingredient: Identifiable, Hashable, Codable {
-    let id: UUID
+    var id: UUID = UUID()
     var name: String
-    var amount: Double   // количество (например, граммы)
-    var unit: String     // единица измерения (г, шт, мл и т.д.)
-
-    init(name: String, amount: Double, unit: String) {
-        self.id = UUID()
-        self.name = name
-        self.amount = amount
-        self.unit = unit
-    }
+    var amount: Double
+    var unit: String
 }
 
 @Model
-class Recipe {
+class Recipe: Identifiable {
     var id: UUID
     var title: String
     var recipeDescription: String
     var category: RecipeCategory
     var url: String?
     var createdAt: Date
-
     var ingredients: [Ingredient]
-    var servings: Int // сколько порций рассчитано
+    var servings: Int
 
     init(
         id: UUID = UUID(),

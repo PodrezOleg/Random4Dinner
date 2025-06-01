@@ -19,6 +19,7 @@ struct Random4DinnerApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Dish.self,
+            Recipe.self   
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {

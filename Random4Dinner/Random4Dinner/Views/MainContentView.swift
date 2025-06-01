@@ -18,11 +18,17 @@ struct MainContentView: View {
     @State private var isShowingSettings: Bool = false
 
     // Можно прокидывать выбранную группу в AddDishView и т.д.
-
     var body: some View {
         VStack(spacing: 20) {
-           Spacer()
+            Spacer()
             DishSelectionButton
+
+            // Добавь кнопку импорта здесь 👇
+            Button("Импортировать блюда из JSON") {
+                importDishesFromJSON(context: context)
+            }
+            .buttonStyle(.borderedProminent)
+
             Spacer()
             CustomTabBar(
                 isAddingDish: $isAddingDish,
