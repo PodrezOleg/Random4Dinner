@@ -69,7 +69,7 @@ final class GroupFirestoreService {
      // Пример метода для сохранения блюда
      func addDish(_ dish: DishDECOD, userId: String, completion: @escaping (Error?) -> Void) {
          do {
-             var dishToSave = dish
+             let dishToSave = dish
              // добавь userId в dishToSave, если структура позволяет
              let _ = try db.collection("dishes").addDocument(from: dishToSave)
              completion(nil)
@@ -77,5 +77,52 @@ final class GroupFirestoreService {
              completion(error)
          }
      }
- }
+    
+    // MARK: - ВЫХОД ИЗ ГРУППЫ (leaveGroup)
+
+       func leaveGroup(groupId: String, userId: String, completion: @escaping (Result<Void, Error>) -> Void) {
+           let groupRef = db.collection("groups").document(groupId)
+
+           groupRef.getDocument { document, error in
+               if let error = error {
+                   completion(.failure(error))
+                   return
+               }
+               guard let document = document, document.exists,
+                     var groupData = document.data() else {
+                   completion(.failure(NSError(domain: "Group not found", code: 404)))
+                   return
+               }
+               // Получаем массив участников
+               var members = groupData["members"] as? [[String: Any]] ?? []
+
+               // Удаляем пользователя из массива участников
+               members.removeAll { member in
+                   (member["id"] as? String) == userId
+               }
+               groupData["members"] = members
+
+               // Если участников больше нет — удалить группу
+               if members.isEmpty {
+                   groupRef.delete { error in
+                       if let error = error {
+                           completion(.failure(error))
+                       } else {
+                           completion(.success(()))
+                       }
+                   }
+               } else {
+                   // Иначе обновляем список участников
+                   groupRef.updateData(["members": members]) { error in
+                       if let error = error {
+                           completion(.failure(error))
+                       } else {
+                           completion(.success(()))
+                       }
+                   }
+               }
+           }
+       }
+   }
+ 
 
