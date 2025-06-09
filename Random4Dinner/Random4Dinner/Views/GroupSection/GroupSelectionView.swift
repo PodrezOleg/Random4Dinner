@@ -14,7 +14,7 @@ struct GroupSelectionView: View {
 
     @State private var showCreateSheet = false
     @State private var groupToLeave: UserGroup? = nil
-    @State private var showLeaveAlert = false
+    @State private var showLeaveAlert = false  
     @State private var errorMessage: String?
     @State private var selection: String? = nil
 
