@@ -12,7 +12,21 @@ import SwiftUI
 
 class GroupStore: ObservableObject {
     @Published var groups: [UserGroup] = []
-    @Published var selectedGroup: UserGroup? = nil
+    @Published var selectedGroup: UserGroup? = nil {
+        didSet {
+            if let groupId = selectedGroup?.id {
+                UserDefaults.standard.set(groupId, forKey: "lastSelectedGroupId")
+            }
+        }
+    }
+    
+    init() {
+        // Загружаем ID последней выбранной группы при инициализации
+        if let lastGroupId = UserDefaults.standard.string(forKey: "lastSelectedGroupId") {
+            // Временно создаем пустую группу с сохраненным ID
+            selectedGroup = UserGroup(id: lastGroupId, name: "", ownerId: "", members: [])
+        }
+    }
 
     func fetchGroups(for userId: String, completion: (() -> Void)? = nil) {
         let db = Firestore.firestore()
@@ -39,7 +53,11 @@ class GroupStore: ObservableObject {
             DispatchQueue.main.async {
                 withAnimation(.easeInOut) {
                     self.groups = found
-                    if self.selectedGroup == nil {
+                    // Обновляем выбранную группу с полными данными
+                    if let lastGroupId = UserDefaults.standard.string(forKey: "lastSelectedGroupId"),
+                       let fullGroup = found.first(where: { $0.id == lastGroupId }) {
+                        self.selectedGroup = fullGroup
+                    } else if self.selectedGroup == nil {
                         self.selectedGroup = found.first
                     }
                 }

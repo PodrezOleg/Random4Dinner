@@ -5,17 +5,25 @@
 //  Created by Oleg Podrez on 31.03.25.
 //
 
+//
+//  DishSyncService.swift
+//  Random4Dinner
+//
+//  Created by Oleg Podrez on 31.03.25.
+//
+
 import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 import SwiftData
+import UIKit
+import FirebaseStorage
 
 final class DishSyncService {
     static let shared = DishSyncService()
     private let db = Firestore.firestore()
     private init() {}
 
-    /// Основная функция синхронизации: импорт блюд пользователя + групповых блюд
     func syncDishes(context: ModelContext, userGroups: [String]) async throws {
         guard let userId = Auth.auth().currentUser?.uid else {
             throw NSError(domain: "", code: 401, userInfo: [NSLocalizedDescriptionKey: "Нет авторизации"])
@@ -24,7 +32,6 @@ final class DishSyncService {
         let remoteDishes = try await fetchAllAvailableDishes(userId: userId, groupIds: userGroups)
         let uniqueRemoteDishes = Self.removeDuplicates(remoteDishes)
 
-        // ВСЕ операции с context на MainActor!
         try await MainActor.run {
             let localDishes = try context.fetch(FetchDescriptor<Dish>())
             let localDict = Dictionary(uniqueKeysWithValues: localDishes.map { ($0.id, $0) })
@@ -33,6 +40,9 @@ final class DishSyncService {
             for (id, remoteDish) in remoteDict {
                 if let local = localDict[id] {
                     local.updateFromDecoded(remoteDish)
+                    if remoteDish.imageURL != nil {
+                        local.imageBase64 = nil
+                    }
                 } else {
                     context.insert(Dish(from: remoteDish))
                 }
@@ -40,12 +50,27 @@ final class DishSyncService {
             try context.save()
         }
 
-        // Экспорт новых/изменённых блюд (можно делать без MainActor, Firestore — не UI)
         try await exportLocalChangesToFirestoreAsync(userId: userId, groupIds: userGroups, context: context)
     }
 
+    private func uploadImageIfNeeded(dish: Dish, docId: String) async throws -> String? {
+        if dish.imageBase64 == nil, let url = dish.imageURL, !url.isEmpty { return url }
+
+        guard let base64 = dish.imageBase64,
+              var data = Data(base64Encoded: base64) else { return dish.imageURL }
+
+        data = ImageTools.resizedJPEGData(from: data, maxDimension: 1280, quality: 0.7) ?? data
+
+        let ref = Storage.storage().reference(withPath: "dishes/\(docId).jpg")
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+
+        _ = try await ref.putDataAsync(data, metadata: metadata)
+        let url = try await ref.downloadURL()
+        return url.absoluteString
+    }
+
     func fetchAllAvailableDishes(userId: String, groupIds: [String]) async throws -> [DishDECOD] {
-        // (как было, тут context не нужен)
         return try await withCheckedThrowingContinuation { continuation in
             var queries: [Query] = []
             queries.append(db.collection("dishes").whereField("userId", isEqualTo: userId))
@@ -71,11 +96,10 @@ final class DishSyncService {
     }
 
     func exportLocalChangesToFirestoreAsync(userId: String, groupIds: [String], context: ModelContext) async throws {
-        let localDishes: [Dish]
-        // только чтение: fetch с MainActor!
-        localDishes = try await MainActor.run {
+        let localDishes: [Dish] = try await MainActor.run {
             try context.fetch(FetchDescriptor<Dish>())
         }
+
         let remote: [DishDECOD] = try await fetchAllAvailableDishes(userId: userId, groupIds: groupIds)
         let remoteIds = Set(remote.compactMap { $0.id })
         var exported = 0
@@ -88,33 +112,33 @@ final class DishSyncService {
                 exported += 1
             }
         }
+
         print("✅ Экспортировано новых блюд в Firestore: \(exported)")
     }
 
-    // Firestore — без MainActor
     private func setDishInFirestoreAsync(dish: Dish, docId: String) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            db.collection("dishes").document(docId).setData([
-                "id": docId,
-                "name": dish.name,
-                "about": dish.about,
-                "imageBase64": dish.imageBase64 ?? "",
-                "category": dish.category?.rawValue ?? "",
-                "userId": dish.userId ?? Auth.auth().currentUser?.uid ?? "",
-                "groupId": dish.groupId ?? ""
-            ], merge: true) { error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
-            }
+        let imageURL = try await uploadImageIfNeeded(dish: dish, docId: docId)
+        
+        var payload: [String: Any] = [
+            "id": docId,
+            "name": dish.name,
+            "about": dish.about,
+            "category": dish.category?.rawValue ?? "",
+            "userId": dish.userId ?? Auth.auth().currentUser?.uid ?? "",
+            "groupId": dish.groupId ?? ""
+        ]
+        if let imageURL { payload["imageURL"] = imageURL }
+        
+        try await db.collection("dishes").document(docId).setData(payload, merge: true)
+        
+        let setImageURL = dish.imageURL == nil
+        await MainActor.run {
+            dish.imageBase64 = nil
+            if setImageURL { dish.imageURL = imageURL }
         }
     }
 
-  
     func addOrUpdateDish(_ decoded: DishDECOD, context: ModelContext) async throws {
-        // 1. Все операции с context — на MainActor
         try await MainActor.run {
             if let id = decoded.id,
                let localDish = try? context.fetch(FetchDescriptor<Dish>(predicate: #Predicate { $0.id == id })).first {
@@ -124,7 +148,7 @@ final class DishSyncService {
             }
             try? context.save()
         }
-        // 2. Firestore upload отдельно (можно не на MainActor)
+
         let docId = decoded.id?.uuidString ?? UUID().uuidString
         try await setDishInFirestoreAsync(dish: Dish(from: decoded), docId: docId)
     }
@@ -151,5 +175,18 @@ final class DishSyncService {
             }
         }
         return unique
+    }
+}
+
+enum ImageTools {
+    static func resizedJPEGData(from data: Data, maxDimension: CGFloat, quality: CGFloat) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let size = image.size
+        let maxSide = max(size.width, size.height)
+        let scale = maxSide > maxDimension ? maxDimension / maxSide : 1
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
+        return resized.jpegData(compressionQuality: quality)
     }
 }

@@ -13,6 +13,7 @@
 		FF4AE4432DDFC5B200B259D4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FF4AE43E2DDFC5B200B259D4 /* Assets.xcassets */; };
 		FFACC1812DD3AEB50039FC0F /* GoogleAPIClientForRESTCore in Frameworks */ = {isa = PBXBuildFile; productRef = FFACC1802DD3AEB50039FC0F /* GoogleAPIClientForRESTCore */; };
 		FFACC1832DD3B18F0039FC0F /* GoogleAPIClientForREST_Drive in Frameworks */ = {isa = PBXBuildFile; productRef = FFACC1822DD3B18F0039FC0F /* GoogleAPIClientForREST_Drive */; };
+		FFCB93052E38193600DB3D84 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = FFCB93042E38193600DB3D84 /* GoogleService-Info.plist */; };
 		FFD1A08C2DDFC3AB0015FF34 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = FFD1A08B2DDFC3AB0015FF34 /* FirebaseAuth */; };
 		FFD1A08E2DDFC3AB0015FF34 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = FFD1A08D2DDFC3AB0015FF34 /* FirebaseCore */; };
 		FFD1A0902DDFC3AB0015FF34 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = FFD1A08F2DDFC3AB0015FF34 /* FirebaseFirestore */; };
@@ -23,24 +24,13 @@
 		FF0579A62DCF89D500A35D35 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		FF1DAC172D7FA0AE0091D977 /* Random4Dinner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Random4Dinner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FF4AE43E2DDFC5B200B259D4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		FFCB92FB2E380B1E00DB3D84 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FFCB93042E38193600DB3D84 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		FF700FB72DCE88CF008D329E /* Exceptions for "Random4Dinner" folder in "Random4Dinner" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = FF1DAC162D7FA0AE0091D977 /* Random4Dinner */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FF1DAC192D7FA0AE0091D977 /* Random4Dinner */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				FF700FB72DCE88CF008D329E /* Exceptions for "Random4Dinner" folder in "Random4Dinner" target */,
-			);
 			path = Random4Dinner;
 			sourceTree = "<group>";
 		};
@@ -70,6 +60,8 @@
 			children = (
 				FF4AE43E2DDFC5B200B259D4 /* Assets.xcassets */,
 				FF0579A62DCF89D500A35D35 /* .gitignore */,
+				FFCB93042E38193600DB3D84 /* GoogleService-Info.plist */,
+				FFCB92FB2E380B1E00DB3D84 /* Info.plist */,
 				FF1DAC192D7FA0AE0091D977 /* Random4Dinner */,
 				FF1DAC182D7FA0AE0091D977 /* Products */,
 			);
@@ -162,6 +154,7 @@
 			files = (
 				FF4AE4432DDFC5B200B259D4 /* Assets.xcassets in Resources */,
 				FF0579A72DCF89D500A35D35 /* .gitignore in Resources */,
+				FFCB93052E38193600DB3D84 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -307,7 +300,7 @@
 				DEVELOPMENT_TEAM = MLNT49BZ43;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Random4Dinner/Info.plist;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.food-and-drink";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -338,7 +331,7 @@
 				DEVELOPMENT_TEAM = MLNT49BZ43;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Random4Dinner/Info.plist;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.food-and-drink";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

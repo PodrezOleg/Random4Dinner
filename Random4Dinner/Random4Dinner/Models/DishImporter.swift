@@ -16,7 +16,8 @@ func importDish(from decod: DishDECOD, context: ModelContext) {
     let dish = Dish(
         name: decod.name ?? "",
         about: decod.about ?? "",
-        imageBase64: decod.imageBase64 ?? "",
+        imageBase64: decod.imageBase64,
+        imageURL: decod.imageURL,            // ✅
         category: decod.category,
         userId: decod.userId,
         groupId: decod.groupId

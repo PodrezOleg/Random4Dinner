@@ -7,10 +7,17 @@
 
 import SwiftUI
 import SwiftData
+import FirebaseAuth
+
 
 struct EditRecipeView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    
+    // Добавляем доступ к текущему пользователю
+    private var currentUserId: String? {
+        Auth.auth().currentUser?.uid
+    }
 
     var recipe: Recipe?
 
@@ -47,7 +54,7 @@ struct EditRecipeView: View {
                             Text(cat.rawValue).tag(cat)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                 }
                 Section(header: Text("Описание")) {
                     TextEditor(text: $description)
@@ -111,15 +118,12 @@ struct EditRecipeView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(recipe == nil ? "Добавить" : "Сохранить") {
-                        saveRecipe()
-                        dismiss()
+                        saveRecipe()    // без второго dismiss()
                     }
                     .disabled(title.isEmpty || description.isEmpty || ingredients.isEmpty)
                 }
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Отмена") {
-                        dismiss()
-                    }
+                    Button("Отмена") { dismiss() }
                 }
             }
         }
@@ -127,23 +131,42 @@ struct EditRecipeView: View {
 
     private func saveRecipe() {
         if let recipe = recipe {
+            // обновление
             recipe.title = title
             recipe.recipeDescription = description
             recipe.category = category
-            recipe.url = url.isEmpty ? nil : url
-            recipe.servings = servings
+            recipe.url = url
             recipe.ingredients = ingredients
+            recipe.servings = servings
+            recipe.lastModified = Date()
+            recipe.isSync = false
         } else {
+            // создание
             let newRecipe = Recipe(
                 title: title,
                 description: description,
                 category: category,
-                url: url.isEmpty ? nil : url,
+                url: url,
+                createdAt: Date(),
                 ingredients: ingredients,
-                servings: servings
+                servings: servings,
+                userId: currentUserId,
+                isSync: false,
+                lastModified: Date()
             )
             context.insert(newRecipe)
         }
+
         try? context.save()
+
+        // ✅ Асинхронный вызов синхронизации без изменения сигнатуры функции
+        if let userId = currentUserId {
+            Task { @MainActor in
+                await RecipeSyncService.shared.syncRecipes(context: context, userId: userId)
+            }
+        }
+
+        // Закрываем экран один раз
+        dismiss()
     }
 }

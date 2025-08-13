@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import FirebaseAuth
 
 struct MyRecipesView: View {
     @Environment(\.modelContext) private var context
@@ -14,6 +15,11 @@ struct MyRecipesView: View {
     @State private var searchText = ""
     @State private var showAddRecipe = false
     @State private var selectedRecipe: Recipe?
+
+    // Получаем текущего пользователя
+    private var currentUserId: String? {
+        Auth.auth().currentUser?.uid
+    }
 
     private var filteredRecipes: [Recipe] {
         if searchText.isEmpty {

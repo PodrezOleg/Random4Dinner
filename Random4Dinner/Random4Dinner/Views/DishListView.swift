@@ -56,12 +56,6 @@ struct DishListView: View {
                             for dish in dishesToDelete {
                                 try? await DishSyncService.shared.deleteDishFromFirestore(dish)
                             }
-                            // 3. Пересинхронизируем (только на MainActor!)
-                            await MainActor.run {
-                                Task {
-                                    try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
-                                }
-                            }
                         }
                     }
                 }
@@ -93,7 +87,35 @@ struct DishRowView: View {
     var body: some View {
         NavigationLink(destination: DishDetailView(dish: dish)) {
             HStack {
-                DishImageView(imageData: Data(base64Encoded: dish.imageBase64 ?? ""))
+                if let urlString = dish.imageURL, let url = URL(string: urlString) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let img):
+                            img.resizable().scaledToFill()
+                        case .failure(_):
+                            Image(systemName: "photo")
+                                .resizable()
+                                .scaledToFill()
+                                .foregroundColor(.gray)
+                                .opacity(0.5)
+                        case .empty:
+                            ProgressView()
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                    .frame(width: 50, height: 50)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                } else {
+                    Image(systemName: "photo")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 50, height: 50)
+                        .foregroundColor(.gray)
+                        .opacity(0.5)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+
                 VStack(alignment: .leading) {
                     Text(dish.name)
                         .font(.headline)
@@ -102,28 +124,6 @@ struct DishRowView: View {
                         .foregroundColor(.gray)
                 }
             }
-        }
-    }
-}
-
-// MARK: - DishImageView
-struct DishImageView: View {
-    let imageData: Data?
-    var body: some View {
-        if let imageData, let uiImage = UIImage(data: imageData) {
-            Image(uiImage: uiImage)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 50, height: 50)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-        } else {
-            Image(systemName: "photo")
-                .resizable()
-                .scaledToFill()
-                .frame(width: 50, height: 50)
-                .foregroundColor(.gray)
-                .opacity(0.5)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 }
