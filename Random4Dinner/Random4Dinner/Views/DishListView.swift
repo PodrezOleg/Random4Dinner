@@ -13,19 +13,21 @@ struct DishListView: View {
     @EnvironmentObject var groupStore: GroupStore
     @Environment(\.modelContext) private var context
     @Query private var allDishes: [Dish]
-
+    
+    @State private var isLoading = false
+    
     private var userId: String? { Auth.auth().currentUser?.uid }
     private var groupId: String? { groupStore.selectedGroup?.id }
-
+    
     private var uniqueDishes: [Dish] {
         var seen = Set<UUID>()
         return allDishes.filter { dish in
-            let isMine = dish.userId == userId && dish.groupId == nil
+            let isMine = dish.userId == userId && (dish.groupId == nil || dish.groupId?.isEmpty == true)
             let isGroup = groupId != nil && dish.groupId == groupId
             return (isMine || isGroup) && seen.insert(dish.id).inserted
         }
     }
-
+    
     var body: some View {
         NavigationView {
             VStack(alignment: .leading) {
@@ -38,28 +40,32 @@ struct DishListView: View {
                         .font(.headline)
                         .padding(.leading)
                 }
-                List {
-                    ForEach(uniqueDishes) { dish in
-                        DishRowView(dish: dish)
-                    }
-                    .onDelete { indexSet in
-                        let dishesToDelete = indexSet.map { uniqueDishes[$0] }
-                        Task {
-                            // 1. Удаляем из локальной базы (MainActor)
-                            await MainActor.run {
-                                for dish in dishesToDelete {
-                                    context.delete(dish)
+                
+                if isLoading {
+                    ProgressView("Загрузка блюд...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(uniqueDishes) { dish in
+                            DishRowView(dish: dish)
+                        }
+                        .onDelete { indexSet in
+                            let dishesToDelete = indexSet.map { uniqueDishes[$0] }
+                            Task {
+                                await MainActor.run {
+                                    for dish in dishesToDelete {
+                                        context.delete(dish)
+                                    }
+                                    try? context.save()
                                 }
-                                try? context.save()
-                            }
-                            // 2. Удаляем из Firestore
-                            for dish in dishesToDelete {
-                                try? await DishSyncService.shared.deleteDishFromFirestore(dish)
+                                for dish in dishesToDelete {
+                                    try? await DishSyncService.shared.deleteDishFromFirestore(dish)
+                                }
                             }
                         }
                     }
+                    .listStyle(.plain)
                 }
-                .listStyle(.plain)
             }
             .navigationTitle("Мои блюда")
             .toolbar {
@@ -69,59 +75,62 @@ struct DishListView: View {
                     }
                 }
             }
-            .task {
-                try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
-            }
-            .onDisappear {
-                Task {
-                    try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
-                }
-            }
+            //            .task {
+            //                isLoading = true
+            //                try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
+            //                isLoading = false
+            //            }
+            //            .onDisappear {
+            //                Task {
+            //                    try? await DishSyncService.shared.syncDishes(context: context, userGroups: groupStore.groups.map { $0.id })
+            //                }
+            //            }
         }
     }
-}
-
-// MARK: - DishRowView
-struct DishRowView: View {
-    let dish: Dish
-    var body: some View {
-        NavigationLink(destination: DishDetailView(dish: dish)) {
-            HStack {
-                if let urlString = dish.imageURL, let url = URL(string: urlString) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let img):
-                            img.resizable().scaledToFill()
-                        case .failure(_):
-                            Image(systemName: "photo")
-                                .resizable()
-                                .scaledToFill()
-                                .foregroundColor(.gray)
-                                .opacity(0.5)
-                        case .empty:
-                            ProgressView()
-                        @unknown default:
-                            EmptyView()
+    
+    
+    // MARK: - DishRowView
+    struct DishRowView: View {
+        let dish: Dish
+        var body: some View {
+            NavigationLink(destination: DishDetailView(dish: dish)) {
+                HStack {
+                    if let urlString = dish.imageURL, let url = URL(string: urlString) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let img):
+                                img.resizable().scaledToFill()
+                            case .failure(_):
+                                Image(systemName: "photo")
+                                    .resizable()
+                                    .scaledToFill()
+                                    .foregroundColor(.gray)
+                                    .opacity(0.5)
+                            case .empty:
+                                ProgressView()
+                            @unknown default:
+                                EmptyView()
+                            }
                         }
-                    }
-                    .frame(width: 50, height: 50)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                } else {
-                    Image(systemName: "photo")
-                        .resizable()
-                        .scaledToFill()
                         .frame(width: 50, height: 50)
-                        .foregroundColor(.gray)
-                        .opacity(0.5)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
-                }
-
-                VStack(alignment: .leading) {
-                    Text(dish.name)
-                        .font(.headline)
-                    Text(dish.about)
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
+                    } else {
+                        Image(systemName: "photo")
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 50, height: 50)
+                            .foregroundColor(.gray)
+                            .opacity(0.5)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    
+                    VStack(alignment: .leading) {
+                        Text(dish.name)
+                            .font(.headline)
+                        Text(dish.about)
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
                 }
             }
         }

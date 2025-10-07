@@ -69,7 +69,7 @@ final class GroupFirestoreService {
      // Пример метода для сохранения блюда
      func addDish(_ dish: DishDECOD, userId: String, completion: @escaping (Error?) -> Void) {
          do {
-             var dishToSave = dish
+             let dishToSave = dish
              // добавь userId в dishToSave, если структура позволяет
              let _ = try db.collection("dishes").addDocument(from: dishToSave)
              completion(nil)

@@ -37,7 +37,7 @@ func importDishesFromJSON(context: ModelContext) {
         let container = try decoder.decode(DishDECOD.DishesContainer.self, from: data)
         print("Загружено блюд: \(container.dishes.count)")
         let userId = Auth.auth().currentUser?.uid // 👈 получаем id пользователя
-        for var dish in container.dishes {
+        for dish in container.dishes {
             // Задаём userId, чтобы блюдо стало "личным"
             var dishWithUser = dish
             dishWithUser.userId = userId

@@ -1,11 +1,4 @@
-//
-//  DishSyncService.swift
-//  Random4Dinner
-//
-//  Created by Oleg Podrez on 31.03.25.
-//
 
-//
 //  DishSyncService.swift
 //  Random4Dinner
 //
@@ -19,6 +12,7 @@ import SwiftData
 import UIKit
 import FirebaseStorage
 
+@MainActor
 final class DishSyncService {
     static let shared = DishSyncService()
     private let db = Firestore.firestore()
@@ -32,23 +26,22 @@ final class DishSyncService {
         let remoteDishes = try await fetchAllAvailableDishes(userId: userId, groupIds: userGroups)
         let uniqueRemoteDishes = Self.removeDuplicates(remoteDishes)
 
-        try await MainActor.run {
-            let localDishes = try context.fetch(FetchDescriptor<Dish>())
-            let localDict = Dictionary(uniqueKeysWithValues: localDishes.map { ($0.id, $0) })
-            let remoteDict = Dictionary(uniqueKeysWithValues: uniqueRemoteDishes.compactMap { dish in dish.id.map { ($0, dish) } })
+        // Merge remote into local on main actor (class is @MainActor)
+        let localDishes = try context.fetch(FetchDescriptor<Dish>())
+        let localDict = Dictionary(uniqueKeysWithValues: localDishes.map { ($0.id, $0) })
+        let remoteDict = Dictionary(uniqueKeysWithValues: uniqueRemoteDishes.compactMap { dish in dish.id.map { ($0, dish) } })
 
-            for (id, remoteDish) in remoteDict {
-                if let local = localDict[id] {
-                    local.updateFromDecoded(remoteDish)
-                    if remoteDish.imageURL != nil {
-                        local.imageBase64 = nil
-                    }
-                } else {
-                    context.insert(Dish(from: remoteDish))
+        for (id, remoteDish) in remoteDict {
+            if let local = localDict[id] {
+                local.updateFromDecoded(remoteDish)
+                if remoteDish.imageURL != nil {
+                    local.imageBase64 = nil
                 }
+            } else {
+                context.insert(Dish(from: remoteDish))
             }
-            try context.save()
         }
+        try context.save()
 
         try await exportLocalChangesToFirestoreAsync(userId: userId, groupIds: userGroups, context: context)
     }
@@ -71,34 +64,22 @@ final class DishSyncService {
     }
 
     func fetchAllAvailableDishes(userId: String, groupIds: [String]) async throws -> [DishDECOD] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var queries: [Query] = []
-            queries.append(db.collection("dishes").whereField("userId", isEqualTo: userId))
-            for groupId in groupIds {
-                queries.append(db.collection("dishes").whereField("groupId", isEqualTo: groupId))
-            }
-
-            var allDishes: [DishDECOD] = []
-            let group = DispatchGroup()
-            for query in queries {
-                group.enter()
-                query.getDocuments { snapshot, error in
-                    defer { group.leave() }
-                    if let docs = snapshot?.documents {
-                        allDishes.append(contentsOf: docs.compactMap { try? $0.data(as: DishDECOD.self) })
-                    }
-                }
-            }
-            group.notify(queue: .main) {
-                continuation.resume(returning: Self.removeDuplicates(allDishes))
-            }
+        var queries: [Query] = []
+        queries.append(db.collection("dishes").whereField("userId", isEqualTo: userId))
+        for groupId in groupIds {
+            queries.append(db.collection("dishes").whereField("groupId", isEqualTo: groupId))
         }
+
+        var allDishes: [DishDECOD] = []
+        for query in queries {
+            let snapshot = try await query.getDocuments()
+            allDishes.append(contentsOf: snapshot.documents.compactMap { try? $0.data(as: DishDECOD.self) })
+        }
+        return Self.removeDuplicates(allDishes)
     }
 
     func exportLocalChangesToFirestoreAsync(userId: String, groupIds: [String], context: ModelContext) async throws {
-        let localDishes: [Dish] = try await MainActor.run {
-            try context.fetch(FetchDescriptor<Dish>())
-        }
+        let localDishes: [Dish] = try context.fetch(FetchDescriptor<Dish>())
 
         let remote: [DishDECOD] = try await fetchAllAvailableDishes(userId: userId, groupIds: groupIds)
         let remoteIds = Set(remote.compactMap { $0.id })
@@ -132,22 +113,19 @@ final class DishSyncService {
         try await db.collection("dishes").document(docId).setData(payload, merge: true)
         
         let setImageURL = dish.imageURL == nil
-        await MainActor.run {
-            dish.imageBase64 = nil
-            if setImageURL { dish.imageURL = imageURL }
+        if setImageURL {
+            dish.imageURL = imageURL
         }
     }
 
     func addOrUpdateDish(_ decoded: DishDECOD, context: ModelContext) async throws {
-        try await MainActor.run {
-            if let id = decoded.id,
-               let localDish = try? context.fetch(FetchDescriptor<Dish>(predicate: #Predicate { $0.id == id })).first {
-                localDish.updateFromDecoded(decoded)
-            } else {
-                context.insert(Dish(from: decoded))
-            }
-            try? context.save()
+        if let id = decoded.id,
+           let localDish = try? context.fetch(FetchDescriptor<Dish>(predicate: #Predicate { $0.id == id })).first {
+            localDish.updateFromDecoded(decoded)
+        } else {
+            context.insert(Dish(from: decoded))
         }
+        try? context.save()
 
         let docId = decoded.id?.uuidString ?? UUID().uuidString
         try await setDishInFirestoreAsync(dish: Dish(from: decoded), docId: docId)
@@ -155,15 +133,7 @@ final class DishSyncService {
 
     func deleteDishFromFirestore(_ dish: Dish) async throws {
         let dishId = dish.id.uuidString
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            db.collection("dishes").document(dishId).delete { error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
-            }
-        }
+        try await db.collection("dishes").document(dishId).delete()
     }
 
     static func removeDuplicates(_ dishes: [DishDECOD]) -> [DishDECOD] {
