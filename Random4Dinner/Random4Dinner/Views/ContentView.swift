@@ -1,9 +1,3 @@
-//  ContentView.swift
-//  Random4Dinner
-//
-//  Created by Oleg Podrez on 11.03.25.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -21,37 +15,53 @@ struct ContentView: View {
     
     @StateObject private var networkMonitor = NetworkMonitor.shared
     
+    @AppStorage("loginMode") private var loginMode: String = ""
+    
     var isSignedIn: Bool {
         GoogleAuthManager.shared.isSignedIn
     }
     
-    
     var body: some View {
-        ZStack {
-            // ⬇️ Логин-пустышка, чтобы блокировать контент, пока нет логина
-            if !isSignedIn && needsLoginResolver {
-                Color.clear
-            } else {
-                // ⬇️ Нет выбранной группы? Покажи GroupSelectionView
-                if groupStore.selectedGroup == nil {
-                    GroupSelectionView()
-                        .environmentObject(groupStore)
+        Group {
+            // Экран выбора входа, если режим не выбран
+            if loginMode.isEmpty {
+                LoginSelectionView()
+            }
+            // Гостевой режим — только локальная работа, без firebase-групп
+            else if loginMode == "guest" {
+                NavigationStack {
+                    MainContentView(
+                        selectedDish: $selectedDish,
+                        isAddingDish: $isAddingDish,
+                        isShowingList: $isShowingList,
+                        errorMessage: $errorMessage
+                    )
+                }
+            }
+            // Google/регистрация
+            else if loginMode == "google" {
+                if !isSignedIn && needsLoginResolver {
+                    Color.clear
                 } else {
-                    NavigationStack {
-                        MainContentView(
-                            selectedDish: $selectedDish,
-                            isAddingDish: $isAddingDish,
-                            isShowingList: $isShowingList,
-                            errorMessage: $errorMessage
-                        )
+                    if groupStore.selectedGroup == nil {
+                        GroupSelectionView()
+                            .environmentObject(groupStore)
+                    } else {
+                        NavigationStack {
+                            MainContentView(
+                                selectedDish: $selectedDish,
+                                isAddingDish: $isAddingDish,
+                                isShowingList: $isShowingList,
+                                errorMessage: $errorMessage
+                            )
+                        }
                     }
                 }
             }
         }
-        
         .modifier(AppLifecycleModifier(errorMessage: $errorMessage))
         .onAppear {
-            if !isSignedIn {
+            if loginMode == "google" && !isSignedIn {
                 needsLoginResolver = true
             }
         }
