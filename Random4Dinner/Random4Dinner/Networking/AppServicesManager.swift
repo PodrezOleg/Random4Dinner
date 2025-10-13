@@ -15,9 +15,19 @@ final class AppServicesManager {
     private init() {}
 
     func configure() {
-        // Только инициализация Google Sign-In!
-        GIDSignIn.sharedInstance.configuration = GIDConfiguration(
-            clientID: "336346687083-pl7ar4iqupk08hjue4mlbkfijd1b0ae9.apps.googleusercontent.com"
-        )
+        // Читаем clientID из Info.plist (ключ GIDClientID), чтобы не было рассинхронизации
+        if let clientID = Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String,
+           !clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+            #if DEBUG
+            print("[AppServicesManager] Google Sign-In configured with clientID from Info.plist")
+            #endif
+        } else {
+            // Фолбэк: если по какой-то причине ключ не найден — логируем предупреждение
+            assertionFailure("[AppServicesManager] GIDClientID not found in Info.plist. Please add the key and value.")
+            #if DEBUG
+            print("[AppServicesManager] Warning: GIDClientID missing in Info.plist. Google Sign-In may not work.")
+            #endif
+        }
     }
 }

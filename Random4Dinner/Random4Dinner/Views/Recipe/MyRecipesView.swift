@@ -14,7 +14,8 @@ struct MyRecipesView: View {
     @Query private var recipes: [Recipe]
     @State private var searchText = ""
     @State private var showAddRecipe = false
-    @State private var selectedRecipe: Recipe?
+    // Раньше: @State private var selectedRecipe: Recipe?
+    @State private var selectedRecipeId: UUID?
 
     // Получаем текущего пользователя
     private var currentUserId: String? {
@@ -37,7 +38,7 @@ struct MyRecipesView: View {
             List {
                 ForEach(filteredRecipes) { recipe in
                     Button {
-                        selectedRecipe = recipe
+                        selectedRecipeId = recipe.id
                     } label: {
                         HStack {
                             VStack(alignment: .leading) {
@@ -67,8 +68,9 @@ struct MyRecipesView: View {
                     }
                 }
             }
-            .sheet(item: $selectedRecipe) { recipe in
-                RecipeDetailView(recipe: recipe)
+            // Раньше показывали sheet(item: $selectedRecipe)
+            .navigationDestination(item: $selectedRecipeId) { recipeId in
+                RecipeDetailView(recipeId: recipeId)
             }
             .sheet(isPresented: $showAddRecipe) {
                 EditRecipeView()
@@ -107,3 +109,4 @@ struct MyRecipesView: View {
 #Preview {
     MyRecipesView()
 }
+

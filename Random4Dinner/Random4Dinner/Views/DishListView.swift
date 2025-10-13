@@ -93,7 +93,7 @@ struct DishListView: View {
     struct DishRowView: View {
         let dish: Dish
         var body: some View {
-            NavigationLink(destination: DishDetailView(dish: dish)) {
+            NavigationLink(destination: DishDetailView(dishId: dish.id)) {
                 HStack {
                     if let urlString = dish.imageURL, let url = URL(string: urlString) {
                         AsyncImage(url: url) { phase in

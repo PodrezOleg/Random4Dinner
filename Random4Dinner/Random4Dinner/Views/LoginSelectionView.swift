@@ -1,8 +1,16 @@
 import SwiftUI
+import FirebaseAuth
 
 struct LoginSelectionView: View {
     @AppStorage("loginMode") private var loginMode: String = ""
     var onSelection: (() -> Void)? = nil
+
+    @EnvironmentObject private var groupStore: GroupStore
+    @Environment(\.modelContext) private var context
+
+    @State private var presentResolver = false
+    @State private var isSigningIn = false
+    @State private var signInError: String?
 
     var body: some View {
         VStack(spacing: 32) {
@@ -15,8 +23,7 @@ struct LoginSelectionView: View {
                 .foregroundColor(.secondary)
             
             Button(action: {
-                loginMode = "google"
-                onSelection?()
+                startGoogleSignInFlow()
             }) {
                 Label("Войти через Google", systemImage: "person.fill.checkmark")
                     .font(.title3)
@@ -27,23 +34,21 @@ struct LoginSelectionView: View {
                     .cornerRadius(12)
             }
             .padding(.horizontal)
-            
-            // Зарегистрироваться = Google-авторизация
-            Button(action: {
-                loginMode = "google" // исправить СЮДА!
-                onSelection?()
-            }) {
-                Label("Зарегистрироваться", systemImage: "person.badge.plus.fill")
-                    .font(.title3)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.green.opacity(0.85))
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
+            .disabled(isSigningIn)
+
+            if isSigningIn {
+                ProgressView("Вход через Google...")
             }
-            .padding(.horizontal)
+            if let signInError = signInError {
+                Text(signInError)
+                    .foregroundColor(.red)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
             
             Button(action: {
+                // Явный вход как гость
                 loginMode = "guest"
                 onSelection?()
             }) {
@@ -60,5 +65,58 @@ struct LoginSelectionView: View {
             Spacer()
         }
         .frame(maxWidth: 350)
+        // Презентуем resolver только когда нужно показать Google UI
+        .background(
+            Group {
+                if presentResolver {
+                    ViewControllerResolver { vc in
+                        presentResolver = false
+                        performGoogleSignIn(presentingVC: vc)
+                    }
+                    .frame(width: 0, height: 0)
+                }
+            }
+        )
+    }
+
+    private func startGoogleSignInFlow() {
+        signInError = nil
+        isSigningIn = true
+        presentResolver = true
+    }
+
+    private func performGoogleSignIn(presentingVC: UIViewController) {
+        GoogleAuthManager.shared.signIn(presenting: presentingVC) { success in
+            if success {
+                // Успешный вход -> грузим группы и блюда
+                let uid = Auth.auth().currentUser?.uid ?? ""
+                groupStore.fetchGroups(for: uid) {
+                    Task {
+                        let groupIds = groupStore.groups.map { $0.id }
+                        do {
+                            try await DishSyncService.shared.syncDishes(context: context, userGroups: groupIds)
+                        } catch {
+                            // Не блокируем вход — просто уведомим
+                            await MainActor.run {
+                                signInError = "Не удалось синхронизировать блюда. Данные будут доступны оффлайн."
+                            }
+                        }
+                        await MainActor.run {
+                            loginMode = "google"
+                            isSigningIn = false
+                            onSelection?()
+                        }
+                    }
+                }
+            } else {
+                // Пользователь отменил или ошибка — заходим как гость автоматически
+                DispatchQueue.main.async {
+                    isSigningIn = false
+                    signInError = nil // можно оставить пустым, чтобы не пугать
+                    loginMode = "guest"
+                    onSelection?()
+                }
+            }
+        }
     }
 }

@@ -10,7 +10,7 @@ import SwiftData
 
 // Простая структура для декодирования JSON
 struct DishDECOD: Codable, Identifiable {
-    let id: UUID?
+    var id: UUID?
     let name: String?
     let about: String?
     let imageBase64: String?   // старый формат

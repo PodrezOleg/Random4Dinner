@@ -2,7 +2,7 @@
 //  MainContentView.swift
 //  Random4Dinner
 //
-//  Created by Oleg Podrez on 13.05.25.
+//  Created by Oleg Podрез on 13.05.25.
 //
 
 import SwiftUI
@@ -10,14 +10,19 @@ import SwiftData
 
 struct MainContentView: View {
     @Environment(\.modelContext) private var context
+    @EnvironmentObject var groupStore: GroupStore
     @Query private var dishes: [Dish]
+    // Раньше: @Binding var selectedDish: Dish?
     @Binding var selectedDish: Dish?
     @Binding var isAddingDish: Bool
     @Binding var isShowingList: Bool
     @Binding var errorMessage: String?
     @State private var isShowingSettings: Bool = false
 
-    // Можно прокидывать выбранную группу в AddDishView и т.д.
+    // Добавляем безопасный id для навигации
+    @State private var selectedDishId: UUID?
+    @State private var deepLinkAlert: String?
+
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
@@ -25,7 +30,9 @@ struct MainContentView: View {
 
             // Добавь кнопку импорта здесь 👇
             Button("Импортировать блюда из JSON") {
-                importDishesFromJSON(context: context)
+                Task {
+                    await importDishesFromJSON(context: context, selectedGroupId: groupStore.selectedGroup?.id)
+                }
             }
             .buttonStyle(.borderedProminent)
 
@@ -42,12 +49,35 @@ struct MainContentView: View {
             isShowingSettings: $isShowingSettings,
             errorMessage: $errorMessage
         ))
+        // Навигация по id (исключаем передачу @Model)
+        .navigationDestination(item: $selectedDishId) { dishId in
+            DishDetailView(dishId: dishId)
+        }
+        .onOpenURL { url in
+            let link = DeepLinkManager.parse(url: url)
+            DeepLinkManager.handle(
+                link,
+                groupStore: groupStore,
+                openDish: { id in selectedDishId = id },
+                presentAlert: { msg in deepLinkAlert = msg }
+            )
+        }
+        .alert("Ссылка", isPresented: Binding(
+            get: { deepLinkAlert != nil },
+            set: { if !$0 { deepLinkAlert = nil } }
+        )) {
+            Button("OK", role: .cancel) { deepLinkAlert = nil }
+        } message: {
+            Text(deepLinkAlert ?? "")
+        }
     }
 
     private var DishSelectionButton: some View {
         Button("Выбрать еду") {
             withAnimation(.snappy(duration: 0.5)) {
-                selectedDish = dishes.randomElement()
+                if let randomDish = dishes.randomElement() {
+                    selectedDishId = randomDish.id
+                }
             }
         }
         .frame(width: 600, height: 150)
@@ -55,11 +85,7 @@ struct MainContentView: View {
         .background(Color.orange)
         .clipShape(Circle())
         .padding()
-        
         .font(.title2.bold())
-        .navigationDestination(item: $selectedDish) { dish in
-            DishDetailView(dish: dish)
-        }
     }
 
     struct CombinedModifiers: ViewModifier {
@@ -95,7 +121,6 @@ struct MainContentView: View {
                 .sheet(isPresented: $isShowingSettings) {
                     SettingsView().environmentObject(groupStore)
                 }
-                   
             }
         }
     }

@@ -28,6 +28,7 @@ struct GroupInvite: Identifiable, Codable {
     var groupId: String
     var inviterId: String
     var inviteeEmail: String
+    var inviteeEmailLower: String   // добавлено для нормализации и индексации
     var status: String // pending, accepted, declined
     var createdAt: Date
 }

@@ -2,9 +2,8 @@
 //  Random4DinnerApp.swift
 //  Random4Dinner
 //
-//  Created by Oleg Podrez on 11.03.25.
+//  Created by Oleg Podрез on 11.03.25.
 //
-
 
 import SwiftUI
 import SwiftData
@@ -14,6 +13,10 @@ import GoogleSignIn
 struct Random4DinnerApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject var groupStore = GroupStore()
+
+    // Состояния для диплинков
+    @State private var deepLinkAlert: String?
+    @State private var pendingDishId: UUID?
 
     // Обычный контейнер без версионированных схем
     var sharedModelContainer: ModelContainer = {
@@ -38,18 +41,58 @@ struct Random4DinnerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .overlay(NotificationBannerView())
-                .environment(\.modelContext, sharedModelContainer.mainContext)
-                .environmentObject(groupStore)
-                .onAppear {
-                    Task { @MainActor in
-                        upgradeToLastModifiedIfNeeded(context: sharedModelContainer.mainContext)
+            NavigationStack {
+                // Встраиваем ваш основной UI. Здесь у вас сейчас ContentView из примера Firebase Messaging.
+                // Если у вас есть свой корневой экран, замените на него.
+                ContentView()
+                    .overlay(NotificationBannerView())
+                    .environment(\.modelContext, sharedModelContainer.mainContext)
+                    .environmentObject(groupStore)
+                    .onAppear {
+                        Task { @MainActor in
+                            upgradeToLastModifiedIfNeeded(context: sharedModelContainer.mainContext)
+                        }
                     }
-                }
-                .onOpenURL { url in
-                    GIDSignIn.sharedInstance.handle(url)
-                }
+                    .onOpenURL { url in
+                        // Сначала даём шанс Google Sign-In
+                        if GIDSignIn.sharedInstance.handle(url) {
+                            return
+                        }
+                        // Разбираем наш диплинк
+                        let link = DeepLinkManager.parse(url: url)
+                        handleDeepLink(link)
+                    }
+                    .alert("Ссылка", isPresented: Binding(
+                        get: { deepLinkAlert != nil },
+                        set: { if !$0 { deepLinkAlert = nil } }
+                    )) {
+                        Button("OK", role: .cancel) { deepLinkAlert = nil }
+                    } message: {
+                        Text(deepLinkAlert ?? "")
+                    }
+                    .navigationDestination(item: Binding(
+                        get: { pendingDishId },
+                        set: { pendingDishId = $0 }
+                    )) { id in
+                        DishDetailView(dishId: id)
+                    }
+            }
+        }
+    }
+
+    // MARK: - Deep Link handling
+
+    private func handleDeepLink(_ deepLink: DeepLink) {
+        switch deepLink {
+        case .invite(let groupId, _):
+            // Сохраняем выбранную группу локально, чтобы пользователь увидел её в "Группах"
+            groupStore.selectedGroup = UserGroup(id: groupId, name: "", ownerId: "", members: [])
+            deepLinkAlert = "Приглашение получено. Откройте раздел “Мои группы”, чтобы присоединиться."
+        case .dish(let id):
+            // Навигация к блюду
+            pendingDishId = id
+        case .unknown:
+            deepLinkAlert = "Не удалось обработать ссылку."
         }
     }
 }

@@ -2,7 +2,7 @@
 //  GroupFirestoreService.swift
 //  Random4Dinner
 //
-//  Created by Oleg Podrez on 24.05.25.
+//  Created by Oleg Podрез on 24.05.25.
 //
 
 import Foundation
@@ -53,29 +53,93 @@ final class GroupFirestoreService {
             completion(.success(group))
         }
     }
-    func getDishesForUser(userId: String, completion: @escaping (Result<[DishDECOD], Error>) -> Void) {
-         db.collection("dishes").whereField("userId", isEqualTo: userId).getDocuments { snapshot, error in
-             if let error = error {
-                 completion(.failure(error))
-             } else {
-                 let dishes: [DishDECOD] = snapshot?.documents.compactMap { doc in
-                     try? doc.data(as: DishDECOD.self)
-                 } ?? []
-                 completion(.success(dishes))
-             }
-         }
-     }
 
-     // Пример метода для сохранения блюда
-     func addDish(_ dish: DishDECOD, userId: String, completion: @escaping (Error?) -> Void) {
-         do {
-             let dishToSave = dish
-             // добавь userId в dishToSave, если структура позволяет
-             let _ = try db.collection("dishes").addDocument(from: dishToSave)
-             completion(nil)
-         } catch {
-             completion(error)
-         }
-     }
- }
+    // MARK: - Dishes helpers (используются при удалении группы)
+    enum GroupDeleteDishesMode {
+        case deleteAll
+        case ungroupToPersonal // установить groupId = nil
+    }
 
+    // Удаление/разгруппировка блюд, привязанных к группе
+    private func handleGroupDishes(for groupId: String, mode: GroupDeleteDishesMode, completion: @escaping (Result<Void, Error>) -> Void) {
+        db.collection("dishes")
+            .whereField("groupId", isEqualTo: groupId)
+            .getDocuments { snapshot, error in
+                if let error = error { completion(.failure(error)); return }
+                let batch = self.db.batch()
+                snapshot?.documents.forEach { doc in
+                    switch mode {
+                    case .deleteAll:
+                        batch.deleteDocument(doc.reference)
+                    case .ungroupToPersonal:
+                        batch.updateData(["groupId": FieldValue.delete()], forDocument: doc.reference)
+                    }
+                }
+                batch.commit { err in
+                    if let err = err { completion(.failure(err)) }
+                    else { completion(.success(())) }
+                }
+            }
+    }
+
+    // Удаление всех инвайтов группы
+    private func deleteAllInvites(for groupId: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        db.collection("invites")
+            .whereField("groupId", isEqualTo: groupId)
+            .getDocuments { snapshot, error in
+                if let error = error { completion(.failure(error)); return }
+                let batch = self.db.batch()
+                snapshot?.documents.forEach { doc in
+                    batch.deleteDocument(doc.reference)
+                }
+                batch.commit { err in
+                    if let err = err { completion(.failure(err)) }
+                    else { completion(.success(())) }
+                }
+            }
+    }
+
+    // Удаление документа группы
+    private func deleteGroupDocument(groupId: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        db.collection("groups").document(groupId).delete { error in
+            if let error = error { completion(.failure(error)) }
+            else { completion(.success(())) }
+        }
+    }
+
+    // Главный метод удаления группы (только владелец)
+    func deleteGroup(groupId: String,
+                     ownerId: String,
+                     dishesMode: GroupDeleteDishesMode,
+                     completion: @escaping (Result<Void, Error>) -> Void) {
+
+        // 1) Проверяем, что удаляет владелец
+        getGroup(groupId: groupId) { result in
+            switch result {
+            case .failure(let err):
+                completion(.failure(err))
+            case .success(let group):
+                guard group.ownerId == ownerId else {
+                    completion(.failure(NSError(domain: "Only owner can delete group", code: 403)))
+                    return
+                }
+                // 2) Сначала чистим инвайты
+                self.deleteAllInvites(for: groupId) { invitesResult in
+                    switch invitesResult {
+                    case .failure(let err): completion(.failure(err))
+                    case .success:
+                        // 3) Потом блюда (удалить или разгруппировать)
+                        self.handleGroupDishes(for: groupId, mode: dishesMode) { dishesResult in
+                            switch dishesResult {
+                            case .failure(let err): completion(.failure(err))
+                            case .success:
+                                // 4) Удаляем сам документ группы
+                                self.deleteGroupDocument(groupId: groupId, completion: completion)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

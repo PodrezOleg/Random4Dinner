@@ -2,7 +2,7 @@
 //  LocalStorageHelper.swift
 //  Random4Dinner
 //
-//  Created by Oleg Podrez on 11.05.25.
+//  Created by Oleg Podрез on 11.05.25.
 //
 
 import Foundation
@@ -64,20 +64,16 @@ enum LocalStorageHelper {
         try FileManager.default.removeItem(at: url)
     }
     
-    // Сохраняет блюда пользователя локально (примерная реализация)
-    static func saveDishesForUser(userId: String) {
-        // Получить блюда пользователя из Firestore или памяти
-        // (пример: получите из FirestoreService или передайте сюда массив блюд)
-        GroupFirestoreService.shared.getDishesForUser(userId: userId) { result in
-            switch result {
-            case .success(let dishes):
-                do {
-                    try saveDishes(dishes, for: userId)
-                } catch {
-                    print("Не удалось сохранить блюда локально: \(error)")
-                }
-            case .failure(let error):
-                print("Ошибка при получении блюд для пользователя: \(error)")
+    // Сохраняет блюда пользователя локально (личные блюда; при необходимости передайте groupIds)
+    static func saveDishesForUser(userId: String, groupIds: [String] = []) {
+        Task {
+            do {
+                // Получаем блюда пользователя (и опционально групп) из Firestore
+                let dishes = try await DishSyncService.shared.fetchAllAvailableDishes(userId: userId, groupIds: groupIds)
+                // Сохраняем локально как JSON
+                try saveDishes(dishes, for: userId)
+            } catch {
+                print("Не удалось сохранить блюда локально: \(error)")
             }
         }
     }

@@ -11,6 +11,7 @@ struct RecipeSyncSummary {
     let exported: Int
     let created: Int
     let updated: Int
+    let deletedLocal: Int
 }
 
 @MainActor
@@ -23,6 +24,7 @@ final class RecipeSyncService {
         var exportedCount = 0
         var createdCount = 0
         var updatedCount = 0
+        var deletedLocalCount = 0
 
         do {
             // 1) Экспорт локальных несинхронизированных рецептов
@@ -33,12 +35,16 @@ final class RecipeSyncService {
             createdCount = importResult.created
             updatedCount = importResult.updated
 
-            // 3) Итог
-            print("✅ Экспортировано новых рецептов в Firestore: \(exportedCount)")
-            print("✅ Импортировано/обновлено рецептов из Firestore: \(createdCount + updatedCount) (создано: \(createdCount), обновлено: \(updatedCount))")
+            // 3) Reconciliation удалений: удалить локальные рецепты, которых нет на сервере
+            deletedLocalCount = try await reconcileDeletedLocal(context: context, userId: userId)
 
-            // 4) Отправляем уведомление
-            let summary = RecipeSyncSummary(exported: exportedCount, created: createdCount, updated: updatedCount)
+            // 4) Итог
+            print("✅ Экспортировано в Firestore: \(exportedCount)")
+            print("✅ Импортировано/обновлено из Firestore: \(createdCount + updatedCount) (создано: \(createdCount), обновлено: \(updatedCount))")
+            print("✅ Локально удалено отсутствующих на сервере: \(deletedLocalCount)")
+
+            // 5) Отправляем уведомление
+            let summary = RecipeSyncSummary(exported: exportedCount, created: createdCount, updated: updatedCount, deletedLocal: deletedLocalCount)
             NotificationCenter.default.post(name: .syncSummary, object: summary)
 
         } catch {
@@ -48,6 +54,7 @@ final class RecipeSyncService {
 
     // MARK: - Экспорт
     private func exportLocalChanges(context: ModelContext, userId: String) async throws -> Int {
+        // Экспортируем только те, что isSync == false (новые/изменённые локально)
         let unsyncedDescriptor = FetchDescriptor<Recipe>(
             predicate: #Predicate<Recipe> { $0.isSync == false }
         )
@@ -107,6 +114,26 @@ final class RecipeSyncService {
         return (createdCount, updatedCount)
     }
 
+    // MARK: - Reconciliation удалений
+    private func reconcileDeletedLocal(context: ModelContext, userId: String) async throws -> Int {
+        // Получаем все рецепты пользователя на сервере
+        let snapshot = try await db.collection("recipes")
+            .whereField("userId", isEqualTo: userId)
+            .getDocuments()
+
+        let remoteIds = Set(snapshot.documents.compactMap { ($0.data()["id"] as? String).flatMap(UUID.init) })
+
+        // Локальные рецепты этого пользователя
+        let local = try context.fetch(FetchDescriptor<Recipe>(predicate: #Predicate { $0.userId == userId }))
+        var deleted = 0
+        for r in local where !remoteIds.contains(r.id) {
+            context.delete(r)
+            deleted += 1
+        }
+        try context.save()
+        return deleted
+    }
+
     // MARK: - Firestore запись
     private func setRecipeInFirestore(_ recipe: Recipe) async throws {
         let payload = recipe.toDictionary()
@@ -141,9 +168,9 @@ final class RecipeSyncService {
             recipe.ingredients = raw.compactMap { ing in
                 guard
                     let name = ing["name"] as? String,
-                    let amount = (ing["amount"] as? NSNumber)?.doubleValue ?? ing["amount"] as? Double,
                     let unit = ing["unit"] as? String
                 else { return nil }
+                let amount = (ing["amount"] as? NSNumber)?.doubleValue ?? ing["amount"] as? Double ?? 0
                 let id = (ing["id"] as? String).flatMap(UUID.init) ?? UUID()
                 return Ingredient(id: id, name: name, amount: amount, unit: unit)
             }
@@ -165,9 +192,9 @@ final class RecipeSyncService {
         let ingredients: [Ingredient] = rawIngredients.compactMap { ing in
             guard
                 let name = ing["name"] as? String,
-                let amount = (ing["amount"] as? NSNumber)?.doubleValue ?? ing["amount"] as? Double,
                 let unit = ing["unit"] as? String
             else { return nil }
+            let amount = (ing["amount"] as? NSNumber)?.doubleValue ?? ing["amount"] as? Double ?? 0
             let ingId = (ing["id"] as? String).flatMap(UUID.init) ?? UUID()
             return Ingredient(id: ingId, name: name, amount: amount, unit: unit)
         }
@@ -201,3 +228,4 @@ final class RecipeSyncService {
         try await db.collection("recipes").document(id).delete()
     }
 }
+

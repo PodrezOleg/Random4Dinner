@@ -15,13 +15,18 @@ final class GroupInviteService {
 
     private init() {}
 
+    private func normalizeEmail(_ email: String) -> String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
     // --- Проверка, отправлено ли уже приглашение этому email в эту группу ---
     func checkPendingInvite(groupId: String, inviteeEmail: String, completion: @escaping (Bool) -> Void) {
+        let normalized = normalizeEmail(inviteeEmail)
         db.collection("invites")
             .whereField("groupId", isEqualTo: groupId)
-            .whereField("inviteeEmail", isEqualTo: inviteeEmail)
+            .whereField("inviteeEmailLower", isEqualTo: normalized)
             .whereField("status", isEqualTo: "pending")
-            .getDocuments { snapshot, error in
+            .getDocuments { snapshot, _ in
                 if let docs = snapshot?.documents, !docs.isEmpty {
                     completion(true) // уже есть такое приглашение
                 } else {
@@ -35,11 +40,13 @@ final class GroupInviteService {
                     inviterId: String,
                     inviteeEmail: String,
                     completion: @escaping (Result<Void, Error>) -> Void) {
+        let normalized = normalizeEmail(inviteeEmail)
         let invite = GroupInvite(
             id: UUID().uuidString,
             groupId: groupId,
             inviterId: inviterId,
             inviteeEmail: inviteeEmail,
+            inviteeEmailLower: normalized,
             status: "pending",
             createdAt: Date()
         )
@@ -56,6 +63,38 @@ final class GroupInviteService {
         }
     }
 
+    // --- Повторная отправка приглашения (обновление существующего pending) ---
+    func resendInviteIfPending(groupId: String,
+                               inviteeEmail: String,
+                               completion: @escaping (Result<Void, Error>) -> Void) {
+        let normalized = normalizeEmail(inviteeEmail)
+        db.collection("invites")
+            .whereField("groupId", isEqualTo: groupId)
+            .whereField("inviteeEmailLower", isEqualTo: normalized)
+            .whereField("status", isEqualTo: "pending")
+            .limit(to: 1)
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
+                guard let doc = snapshot?.documents.first else {
+                    completion(.failure(NSError(domain: "NoPendingInvite", code: 0)))
+                    return
+                }
+                // Можно хранить счетчик/время последней отправки
+                doc.reference.updateData([
+                    "createdAt": Timestamp(date: Date())
+                ]) { err in
+                    if let err = err {
+                        completion(.failure(err))
+                    } else {
+                        completion(.success(()))
+                    }
+                }
+            }
+    }
+
     // --- Принять приглашение ---
     func acceptInvite(inviteId: String?,
                       userId: String,
@@ -65,27 +104,30 @@ final class GroupInviteService {
         let inviteRef = db.collection("invites").document(inviteId ?? "")
         inviteRef.getDocument { snapshot, error in
             if let data = snapshot?.data(), let groupId = data["groupId"] as? String {
-                // Добавляем участника в группу
                 let member = GroupMember(id: userId,
                                          name: displayName,
                                          avatarUrl: avatarUrl,
                                          isAdmin: false)
                 let groupRef = self.db.collection("groups").document(groupId)
-                groupRef.updateData([
-                    "members": FieldValue.arrayUnion([try! Firestore.Encoder().encode(member)])
-                ]) { error in
-                    if let error = error {
-                        completion(.failure(error))
-                        return
-                    }
-                    // Обновить статус приглашения
-                    inviteRef.updateData(["status": "accepted"]) { err in
-                        if let err = err {
-                            completion(.failure(err))
-                        } else {
-                            completion(.success(()))
+                do {
+                    let memberData = try Firestore.Encoder().encode(member)
+                    groupRef.updateData([
+                        "members": FieldValue.arrayUnion([memberData])
+                    ]) { error in
+                        if let error = error {
+                            completion(.failure(error))
+                            return
+                        }
+                        inviteRef.updateData(["status": "accepted"]) { err in
+                            if let err = err {
+                                completion(.failure(err))
+                            } else {
+                                completion(.success(()))
+                            }
                         }
                     }
+                } catch {
+                    completion(.failure(error))
                 }
             } else {
                 completion(.failure(error ?? NSError(domain: "Invite not found", code: 0)))
