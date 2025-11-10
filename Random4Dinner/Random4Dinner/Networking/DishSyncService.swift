@@ -4,6 +4,7 @@
 //
 //  Created by Oleg Podрез on 31.03.25.
 //  Обновлено: reconciliation удалений, устойчивость Storage, фильтры по userId/groupId.
+//  Safe dedup + duplicate logging to avoid Dictionary(uniqueKeysWithValues:) crashes.
 //
 
 import Foundation
@@ -31,14 +32,44 @@ final class DishSyncService {
 
         // 1) Импорт доступных блюд с сервера (по userId и groupIds)
         let remoteDishes = try await fetchAllAvailableDishes(userId: userId, groupIds: userGroups)
+        // Defensive dedupe before any dictionary work
         let uniqueRemoteDishes = Self.removeDuplicates(remoteDishes)
 
         // 2) Мёрдж в локальную базу (upsert)
         let localDishes = try context.fetch(FetchDescriptor<Dish>())
-        let localDict = Dictionary(uniqueKeysWithValues: localDishes.map { ($0.id, $0) })
-        let remoteDict = Dictionary(uniqueKeysWithValues: uniqueRemoteDishes.compactMap { dish in
-            dish.id.map { ($0, dish) }
-        })
+
+        // Build localDict safely (tolerate duplicate local ids; log and overwrite)
+        var localDict: [UUID: Dish] = [:]
+        var localDupCount = 0
+        var localDupIdsLogged = Set<UUID>()
+        for d in localDishes {
+            if localDict.updateValue(d, forKey: d.id) != nil {
+                localDupCount += 1
+                if localDupIdsLogged.insert(d.id).inserted {
+                    print("[DishSync][dup-local] duplicate local id encountered when building localDict: \(d.id.uuidString)")
+                }
+            }
+        }
+        if localDupCount > 0 {
+            print("[DishSync][warn] local duplicates encountered: \(localDupCount) (unique dup ids: \(localDupIdsLogged.count))")
+        }
+
+        // Build remoteDict safely (tolerate duplicate ids by overwriting, no crash)
+        var remoteDict: [UUID: DishDECOD] = [:]
+        var duplicateCount = 0
+        var duplicateIdsLogged = Set<UUID>()
+        for dish in uniqueRemoteDishes {
+            guard let id = dish.id else { continue }
+            if remoteDict.updateValue(dish, forKey: id) != nil {
+                duplicateCount += 1
+                if duplicateIdsLogged.insert(id).inserted {
+                    print("[DishSync][dup] duplicate id encountered during merge: \(id.uuidString)")
+                }
+            }
+        }
+        if duplicateCount > 0 {
+            print("[DishSync][warn] remote duplicates encountered during merge: \(duplicateCount) (unique dup ids: \(duplicateIdsLogged.count))")
+        }
 
         var createdOrUpdated = 0
         for (id, remoteDish) in remoteDict {
@@ -91,7 +122,13 @@ final class DishSyncService {
             let part: [DishDECOD] = snapshot.documents.compactMap { try? $0.data(as: DishDECOD.self) }
             allDishes.append(contentsOf: part)
         }
-        return Self.removeDuplicates(allDishes)
+
+        // Return de-duplicated list by UUID
+        let deduped = Self.removeDuplicates(allDishes)
+        if deduped.count != allDishes.count {
+            print("[DishSync][info] fetchAllAvailableDishes removed \(allDishes.count - deduped.count) duplicates (by id)")
+        }
+        return deduped
     }
 
     // MARK: - Export
@@ -104,8 +141,15 @@ final class DishSyncService {
         let remote: [DishDECOD] = try await fetchAllAvailableDishes(userId: userId, groupIds: groupIds)
         let remoteIds = Set(remote.compactMap { $0.id })
 
+        // Defensive: dedupe local dish ids to avoid redundant writes
+        var seenLocal = Set<UUID>()
         var exported = 0
         for dish in localDishes {
+            guard seenLocal.insert(dish.id).inserted else {
+                print("[DishSync][dup-local] duplicate local id encountered: \(dish.id.uuidString)")
+                continue
+            }
+
             let isMine = (dish.userId == userId) || (dish.groupId != nil && groupIds.contains(dish.groupId!))
             guard isMine else { continue }
 
@@ -223,9 +267,13 @@ final class DishSyncService {
     static func removeDuplicates(_ dishes: [DishDECOD]) -> [DishDECOD] {
         var seen = Set<UUID>()
         var unique: [DishDECOD] = []
+        var duplicatesLogged = Set<UUID>()
         for d in dishes {
-            if let id = d.id, seen.insert(id).inserted {
+            guard let id = d.id else { continue }
+            if seen.insert(id).inserted {
                 unique.append(d)
+            } else if duplicatesLogged.insert(id).inserted {
+                print("[DishSync][dup] removeDuplicates saw duplicate id: \(id.uuidString)")
             }
         }
         return unique
@@ -246,4 +294,3 @@ enum ImageTools {
         return resized.jpegData(compressionQuality: quality)
     }
 }
-

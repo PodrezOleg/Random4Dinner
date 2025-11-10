@@ -130,3 +130,8 @@ struct AddDishView: View {
          }
      }
  }
+
+#Preview {
+    AddDishView()
+        .environmentObject(GroupStore())
+}

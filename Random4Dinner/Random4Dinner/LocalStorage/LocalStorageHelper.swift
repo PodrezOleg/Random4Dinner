@@ -6,16 +6,24 @@
 //
 
 import Foundation
-import FirebaseCore
 
 enum LocalStorageHelper {
     static var documentsDirectory: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
     
-    // Путь для блюд конкретного пользователя
+    // Group-aware path
+    static func dishesJSONURL(for userId: String, groupId: String?) -> URL {
+        if let gid = groupId, !gid.isEmpty {
+            return documentsDirectory.appendingPathComponent("dishes_user_\(userId)_group_\(gid).json")
+        } else {
+            return documentsDirectory.appendingPathComponent("dishes_user_\(userId).json")
+        }
+    }
+
+    // Backward-compat convenience
     static func dishesJSONURL(for userId: String) -> URL {
-        documentsDirectory.appendingPathComponent("dishes_\(userId).json")
+        dishesJSONURL(for: userId, groupId: nil)
     }
     
     static var imagesDirectory: URL {
@@ -29,49 +37,66 @@ enum LocalStorageHelper {
     static func saveImage(data: Data, for dishID: UUID) throws -> String {
         let imageURL = imagesDirectory.appendingPathComponent("\(dishID).jpg")
         try data.write(to: imageURL)
-        return "images/\(dishID).jpg"
+        return imageURL.absoluteString
     }
     
     static func loadImage(for dishID: UUID) -> Data? {
         let imageURL = imagesDirectory.appendingPathComponent("\(dishID).jpg")
+        guard FileManager.default.fileExists(atPath: imageURL.path) else { return nil }
         return try? Data(contentsOf: imageURL)
     }
     
     static func deleteImage(for dishID: UUID) {
         let imageURL = imagesDirectory.appendingPathComponent("\(dishID).jpg")
-        try? FileManager.default.removeItem(at: imageURL)
+        if FileManager.default.fileExists(atPath: imageURL.path) {
+            try? FileManager.default.removeItem(at: imageURL)
+        }
     }
     
     // --- Работа с блюдами ---
     
-    // Сохранить блюда пользователя (или группы)
-    static func saveDishes<T: Codable>(_ dishes: [T], for userId: String) throws {
-        let url = dishesJSONURL(for: userId)
+    // Save dishes (user or user+group)
+    static func saveDishes<T: Codable>(_ dishes: [T], for userId: String, groupId: String?) throws {
+        let url = dishesJSONURL(for: userId, groupId: groupId)
         let data = try JSONEncoder().encode(dishes)
         try data.write(to: url, options: .atomic)
     }
-    
-    // Загрузить блюда пользователя (или группы)
-    static func loadDishes<T: Codable>(for userId: String, as type: T.Type) -> [T] {
-        let url = dishesJSONURL(for: userId)
+
+    // Backward-compat
+    static func saveDishes<T: Codable>(_ dishes: [T], for userId: String) throws {
+        try saveDishes(dishes, for: userId, groupId: nil)
+    }
+
+    // Load dishes (user or user+group)
+    static func loadDishes<T: Codable>(for userId: String, groupId: String?, as type: T.Type) -> [T] {
+        let url = dishesJSONURL(for: userId, groupId: groupId)
         guard let data = try? Data(contentsOf: url) else { return [] }
         return (try? JSONDecoder().decode([T].self, from: data)) ?? []
     }
-    
-    // Удалить блюда пользователя
-    static func deleteDishes(for userId: String) throws {
-        let url = dishesJSONURL(for: userId)
+
+    // Backward-compat
+    static func loadDishes<T: Codable>(for userId: String, as type: T.Type) -> [T] {
+        loadDishes(for: userId, groupId: nil, as: type)
+    }
+
+    // Delete dishes (user or user+group)
+    static func deleteDishes(for userId: String, groupId: String?) throws {
+        let url = dishesJSONURL(for: userId, groupId: groupId)
         try FileManager.default.removeItem(at: url)
     }
+
+    // Backward-compat
+    static func deleteDishes(for userId: String) throws {
+        try deleteDishes(for: userId, groupId: nil)
+    }
     
-    // Сохраняет блюда пользователя локально (личные блюда; при необходимости передайте groupIds)
-    static func saveDishesForUser(userId: String, groupIds: [String] = []) {
+    // Save user's (or selected group's) dishes to local JSON
+    static func saveDishesForUser(userId: String, groupId: String? = nil) {
         Task {
             do {
-                // Получаем блюда пользователя (и опционально групп) из Firestore
+                let groupIds = groupId.map { [$0] } ?? []
                 let dishes = try await DishSyncService.shared.fetchAllAvailableDishes(userId: userId, groupIds: groupIds)
-                // Сохраняем локально как JSON
-                try saveDishes(dishes, for: userId)
+                try saveDishes(dishes, for: userId, groupId: groupId)
             } catch {
                 print("Не удалось сохранить блюда локально: \(error)")
             }

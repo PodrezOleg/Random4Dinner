@@ -1,4 +1,7 @@
 import SwiftUI
+import AppIntents
+import StoreKit
+import WebKit
 import SwiftData
 
 struct ContentView: View {
@@ -71,4 +74,10 @@ struct ContentView: View {
             }
         }
     }
+}
+
+#Preview {
+    ContentView()
+        .environmentObject(GroupStore())
+        .modelContainer(for: Dish.self, inMemory: true)
 }

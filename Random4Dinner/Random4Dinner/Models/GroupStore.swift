@@ -10,6 +10,7 @@ import FirebaseAuth
 import FirebaseFirestore
 import SwiftUI
 
+@MainActor
 class GroupStore: ObservableObject {
     @Published var groups: [UserGroup] = []
     @Published var selectedGroup: UserGroup? = nil {
